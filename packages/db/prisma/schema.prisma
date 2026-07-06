@@ -1,0 +1,246 @@
+// Hell Let Loose Clan Dashboard — Prisma schema (PostgreSQL)
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Single-row configuration table (id is always 1).
+model Settings {
+  id               Int      @id @default(1)
+  guildId          String
+  memberRoleId     String?  // role that defines "Member" status
+  memberRoleIds    Json     @default("[]") // roles that define Member status
+  selectableRoles  Json     @default("[]") // [{id,name}] shown in dropdowns
+  rankRoles        Json     @default("[]") // [{id,name}] ordered highest-priority first
+  rosterEmojis     Json     @default("{}") // Discord emoji codes used in roster embeds
+  briefingVoiceChannels Json @default("{}") // category, names, and auto-delete settings for briefing voice channels
+  recruitChannelId String?
+  matchChannelId   String?  // channel the bot posts match announcements to
+  updatedAt        DateTime @updatedAt
+
+  @@map("settings")
+}
+
+/// Discord identity. Primary key for everything else.
+model User {
+  id           BigInt   @id @default(autoincrement())
+  discordId    String   @unique
+  username     String
+  serverNick   String?
+  avatar       String?
+  isGuildAdmin Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  gameAccounts GameAccount[]
+  roles        UserRole[]
+  member       Member?
+  stats        MemberStats?
+  hllRecord    HllRecordStat?
+  matchStats   MatchPlayerStat[]
+  rosterSlots  RosterSlot[]
+
+  @@map("users")
+}
+
+/// Discord <-> Steam64/Epic linking. One user may have several.
+model GameAccount {
+  id       BigInt   @id @default(autoincrement())
+  userId   BigInt
+  platform String   // 'steam' | 'epic'
+  gameId   String
+  verified Boolean  @default(false)
+  linkedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([platform, gameId])
+  @@index([userId])
+  @@map("game_accounts")
+}
+
+/// Cached snapshot of a user's Discord roles (kept in sync by the bot).
+model UserRole {
+  userId   BigInt
+  roleId   String
+  syncedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@map("user_roles")
+}
+
+/// Access control: allow-listed roles.
+model AccessAllowedRole {
+  roleId    String   @id
+  addedBy   BigInt?
+  createdAt DateTime @default(now())
+
+  @@map("access_allowed_roles")
+}
+
+/// Access control: explicitly allow-listed Discord users.
+model AccessAllowedUser {
+  discordId String   @id
+  addedBy   BigInt?
+  createdAt DateTime @default(now())
+
+  @@map("access_allowed_users")
+}
+
+/// Clan roster view (a User that belongs to the clan).
+model Member {
+  id            BigInt   @id @default(autoincrement())
+  userId        BigInt   @unique
+  currentRoleId String?
+  isMember      Boolean  @default(false)
+  joinedAt      DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("members")
+}
+
+/// Aggregated average stats per user.
+model MemberStats {
+  userId        BigInt   @id
+  kills         Int      @default(0)
+  deaths        Int      @default(0)
+  kpm           Decimal  @default(0) @db.Decimal(6, 2)
+  matchesPlayed Int      @default(0)
+  updatedAt     DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("member_stats")
+}
+
+/// Stats scraped daily from hllrecords.com (Steam profiles only, 90d period).
+model HllRecordStat {
+  userId       BigInt   @id
+  gameId       String   // the Steam64 id the stats were scraped for
+  kpm          Decimal? @db.Decimal(6, 2) // kills per minute
+  kdr          Decimal? @db.Decimal(6, 2) // kill/death ratio
+  duelStrength Int? // infantry kill ELO ("Duel strength")
+  fetchedAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("hll_record_stats")
+}
+
+enum RecruitStatus {
+  pending
+  accepted
+  rejected
+}
+
+/// Recruit applications parsed from the Discord recruit channel.
+model Recruit {
+  id              BigInt        @id @default(autoincrement())
+  discordId       String
+  messageId       String        @unique
+  extractedGameId String?
+  rawApplication  String?
+  status          RecruitStatus @default(pending)
+  postedAt        DateTime
+  processedAt     DateTime?
+  reviewedBy      BigInt?
+
+  @@index([status])
+  @@map("recruits")
+}
+
+/// A recorded match.
+model Match {
+  id         BigInt    @id @default(autoincrement())
+  map        String?
+  result     String?
+  playedAt   DateTime?
+  eventType  String?   // ECL | HBL | Friendly | SLB | GH | MWF | Other
+  eventName  String?   // custom label when eventType = Other
+  opponent   String?   // set for competitive events
+  url        String?   // CRCON game URL the stats were pulled from
+  source     String?   // 'crcon' | 'upload'
+  rawPayload Json?
+  createdAt  DateTime  @default(now())
+
+  playerStats MatchPlayerStat[]
+
+  @@map("matches")
+}
+
+/// Per-player stats for a match.
+model MatchPlayerStat {
+  id      BigInt  @id @default(autoincrement())
+  matchId BigInt
+  gameId  String
+  userId  BigInt?
+  team    String?
+  kills   Int     @default(0)
+  deaths  Int     @default(0)
+  kpm     Decimal @default(0) @db.Decimal(6, 2)
+
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  user  User? @relation(fields: [userId], references: [id])
+
+  @@index([matchId])
+  @@index([userId])
+  @@map("match_player_stats")
+}
+
+enum RosterStatus {
+  draft
+  posted
+  closed
+}
+
+enum SlotResponse {
+  pending
+  accepted
+  declined
+}
+
+/// Roster built from a RaidHelper event. The squad layout is stored as a JSON
+/// document in `data`; RosterSlot rows track each assigned player's attendance
+/// confirmation (pending/accepted/declined).
+model Roster {
+  id                BigInt       @id @default(autoincrement())
+  raidhelperEventId String?      @unique
+  channelId         String?
+  messageId         String?
+  name              String?
+  eventTitle        String?
+  eventStartTime    DateTime?
+  data              Json?
+  status            RosterStatus @default(draft)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @default(now()) @updatedAt
+
+  slots RosterSlot[]
+
+  @@map("rosters")
+}
+
+model RosterSlot {
+  id          BigInt       @id @default(autoincrement())
+  rosterId    BigInt
+  userId      BigInt?
+  discordId   String?
+  username    String?
+  position    String?
+  response    SlotResponse @default(pending)
+  respondedAt DateTime?
+
+  roster Roster @relation(fields: [rosterId], references: [id], onDelete: Cascade)
+  user   User?  @relation(fields: [userId], references: [id])
+
+  @@unique([rosterId, discordId])
+  @@map("roster_slots")
+}
