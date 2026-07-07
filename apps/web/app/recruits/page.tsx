@@ -17,6 +17,7 @@ interface Recruit {
   status: 'pending' | 'accepted' | 'rejected';
   formerMember: boolean;
   postedAt: string;
+  processedAt: string | null;
   rawApplication: string | null;
 }
 
@@ -101,6 +102,7 @@ export default function RecruitsPage() {
                 <th>Discord ID</th>
                 <th>Game ID</th>
                 <th className="text-center">Status</th>
+                <th className="text-center">Accepted</th>
                 <th className="text-right">Action</th>
               </tr>
             </thead>
@@ -184,6 +186,26 @@ export default function RecruitsPage() {
                       </span>
                     )}
                   </td>
+                  <td className="text-center">
+                    {r.status === 'accepted' && r.processedAt ? (
+                      <div className="flex flex-col items-center gap-1">
+                        <span className="text-xs text-zinc-300">
+                          {formatDate(r.processedAt)}
+                        </span>
+                        {isOldAcceptance(r.processedAt) && (
+                          <span className="badge bg-amber-500/10 text-amber-400" title="Accepted more than 3 weeks ago">
+                            3+ weeks
+                          </span>
+                        )}
+                      </div>
+                    ) : r.status === 'rejected' && r.processedAt ? (
+                      <span className="text-xs text-zinc-500">
+                        {formatDate(r.processedAt)}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-zinc-500">—</span>
+                    )}
+                  </td>
                   <td className="text-right">
                     {r.processed ? (
                       <span className="text-xs text-zinc-500">Already linked</span>
@@ -220,6 +242,19 @@ export default function RecruitsPage() {
       )}
     </div>
   );
+}
+
+function formatDate(value: string) {
+  return new Date(value).toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+}
+
+function isOldAcceptance(value: string) {
+  const ageDays = (Date.now() - new Date(value).getTime()) / (1000 * 60 * 60 * 24);
+  return ageDays > 21;
 }
 
 function roleRowClass(category: Recruit['roleCategory']) {
