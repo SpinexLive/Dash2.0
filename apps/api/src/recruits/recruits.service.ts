@@ -136,6 +136,14 @@ export class RecruitsService {
     });
   }
 
+  async refresh() {
+    await this.redis.publish(
+      BOT_COMMAND_CHANNEL,
+      JSON.stringify({ type: 'pollRecruits' }),
+    );
+    return { ok: true };
+  }
+
   async reject(id: bigint, reviewerDiscordId: string) {
     const reviewer = await prisma.user.findUnique({
       where: { discordId: reviewerDiscordId },

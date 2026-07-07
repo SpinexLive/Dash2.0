@@ -15,6 +15,11 @@ export class RecruitsController {
     return this.recruits.list(status);
   }
 
+  @Post('refresh')
+  refresh() {
+    return this.recruits.refresh();
+  }
+
   @Post(':id/process')
   process(@Param('id') id: string, @CurrentUser() user: SessionUser) {
     return this.recruits.process(BigInt(id), user.discordId);

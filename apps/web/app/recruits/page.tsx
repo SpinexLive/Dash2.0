@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { api } from '../../lib/api';
 import { PageHeader } from '../../components/PageHeader';
-import { WarningIcon, CheckCircleIcon } from '../../components/icons';
+import { WarningIcon, CheckCircleIcon, RefreshIcon } from '../../components/icons';
 
 interface Recruit {
   id: string;
@@ -23,6 +23,7 @@ interface Recruit {
 export default function RecruitsPage() {
   const [recruits, setRecruits] = useState<Recruit[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
 
@@ -35,6 +36,16 @@ export default function RecruitsPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  async function refreshApplications() {
+    setRefreshing(true);
+    try {
+      await api('/recruits/refresh', { method: 'POST' });
+      await load();
+    } finally {
+      setRefreshing(false);
+    }
+  }
 
   async function process(id: string) {
     setBusy(id);
@@ -61,7 +72,16 @@ export default function RecruitsPage() {
       <PageHeader
         title="Recruit Intake"
         description="Applications detected by the bot in the recruit channel. Process one to link its game ID to the member."
-      />
+      >
+        <button
+          onClick={refreshApplications}
+          disabled={refreshing}
+          className="btn btn-ghost"
+        >
+          <RefreshIcon className={refreshing ? 'animate-spin' : ''} />
+          {refreshing ? 'Refreshing…' : 'Refresh'}
+        </button>
+      </PageHeader>
 
       <div className="card flex min-h-0 flex-1 flex-col overflow-auto">
         {loading ? (

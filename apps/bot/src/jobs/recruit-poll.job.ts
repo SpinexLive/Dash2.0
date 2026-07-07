@@ -76,6 +76,7 @@ export async function pollRecruits() {
   let scanned = 0;
   let embeds = 0;
   let parsed = 0;
+  const activeMessageIds = new Set<string>();
 
   // Page through the channel's full history (Discord caps each fetch at 100).
   let before: string | undefined;
@@ -95,6 +96,8 @@ export async function pollRecruits() {
       // Identify the applicant from the embed (not the form bot author).
       const discordId = extractApplicantId(text);
       if (!discordId) continue; // not a parseable application
+
+      activeMessageIds.add(msg.id);
 
       // Resolve the applicant's nickname and rewrite mentions as readable names
       // so the dashboard can show the nickname without its own Discord lookup.
@@ -129,7 +132,18 @@ export async function pollRecruits() {
     if (!before) break;
   }
 
+  if (activeMessageIds.size > 0) {
+    await prisma.recruit.deleteMany({
+      where: {
+        status: 'pending',
+        messageId: { notIn: [...activeMessageIds] },
+      },
+    });
+  } else {
+    await prisma.recruit.deleteMany({ where: { status: 'pending' } });
+  }
+
   console.log(
-    `[recruit-poll] scanned=${scanned} withEmbeds=${embeds} applications=${parsed}`,
+    `[recruit-poll] scanned=${scanned} withEmbeds=${embeds} applications=${parsed} removedPending=${activeMessageIds.size === 0 ? 'all' : 'stale'}`,
   );
 }
