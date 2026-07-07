@@ -131,7 +131,8 @@ export class RecruitsService {
         status: r.status,
         // Was once a member but no longer active (left the guild / lost role).
         formerMember: Boolean(u?.member && u.member.isMember === false),
-        postedAt: r.postedAt,
+        postedAt: r.postedAt.toISOString(),
+        processedAt: r.processedAt?.toISOString() ?? null,
         rawApplication: r.rawApplication,
       };
     });

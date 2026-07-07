@@ -131,6 +131,14 @@ export default function RecruitsPage() {
                           Left / inactive
                         </span>
                       )}
+                      {r.status === 'accepted' && r.processedAt && isOldAcceptance(r.processedAt) && r.roleCategory === 'recruit' && (
+                        <span
+                          className="badge bg-amber-500/10 text-amber-400"
+                          title="Accepted more than 3 weeks ago and still has the recruit role"
+                        >
+                          Old recruit
+                        </span>
+                      )}
                     </div>
                     {r.rawApplication && (
                       <button
