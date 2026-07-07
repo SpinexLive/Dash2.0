@@ -102,7 +102,7 @@ export default function RecruitsPage() {
                 <th>Discord ID</th>
                 <th>Game ID</th>
                 <th className="text-center">Status</th>
-                <th className="text-center">Accepted</th>
+                <th className="text-center">Submitted</th>
                 <th className="text-right">Action</th>
               </tr>
             </thead>
@@ -195,21 +195,17 @@ export default function RecruitsPage() {
                     )}
                   </td>
                   <td className="text-center">
-                    {r.status === 'accepted' && r.processedAt ? (
+                    {r.postedAt ? (
                       <div className="flex flex-col items-center gap-1">
                         <span className="text-xs text-zinc-300">
-                          {formatDate(r.processedAt)}
+                          {formatDate(r.postedAt)}
                         </span>
-                        {isOldAcceptance(r.processedAt) && (
-                          <span className="badge bg-amber-500/10 text-amber-400" title="Accepted more than 3 weeks ago">
+                        {r.status === 'accepted' && r.processedAt && isOldAcceptance(r.processedAt) && r.roleCategory === 'recruit' && (
+                          <span className="badge bg-amber-500/10 text-amber-400" title="Accepted more than 3 weeks ago and still has the recruit role">
                             3+ weeks
                           </span>
                         )}
                       </div>
-                    ) : r.status === 'rejected' && r.processedAt ? (
-                      <span className="text-xs text-zinc-500">
-                        {formatDate(r.processedAt)}
-                      </span>
                     ) : (
                       <span className="text-xs text-zinc-500">—</span>
                     )}
