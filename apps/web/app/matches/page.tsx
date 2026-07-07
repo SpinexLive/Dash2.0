@@ -327,13 +327,17 @@ export default function MatchesPage() {
                 : 'Stats refresh complete.'}
             </span>
             <span className="font-mono text-xs text-zinc-500">
-              {refreshProgress.completed}/{refreshProgress.total}
+              {refreshPercent}% • {refreshProgress.completed}/{refreshProgress.total}
             </span>
           </div>
           <div className="h-2 overflow-hidden rounded-full bg-zinc-800">
             <div
-              className="h-full rounded-full bg-red-600 transition-all duration-300"
-              style={{ width: `${refreshPercent}%` }}
+              className={`h-full rounded-full transition-all duration-300 ${
+                refreshRunning
+                  ? 'animate-pulse bg-gradient-to-r from-red-600 via-red-500 to-orange-500'
+                  : 'bg-red-600'
+              }`}
+              style={{ width: `${Math.max(refreshPercent, refreshRunning ? 6 : 0)}%` }}
             />
           </div>
           {refreshProgress.failed > 0 && (

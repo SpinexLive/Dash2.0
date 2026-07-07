@@ -95,6 +95,7 @@ export default function MembersPage() {
   const [sortKey, setSortKey] = useState<SortKey>('name');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [roleFilter, setRoleFilter] = useState('');
+  const [nameQuery, setNameQuery] = useState('');
   const [minKpm, setMinKpm] = useState(0);
   const [minKdr, setMinKdr] = useState(0);
   const [mounted, setMounted] = useState(false);
@@ -281,8 +282,12 @@ export default function MembersPage() {
   }, [members]);
 
   const filtered = useMemo(() => {
+    const normalizedQuery = nameQuery.trim().toLowerCase();
     return members.filter((member) => {
       const roleMatches = !roleFilter || member.rankRole?.name === roleFilter;
+      const nameMatches =
+        normalizedQuery.length === 0 ||
+        member.serverNick.toLowerCase().includes(normalizedQuery);
       const kpmMatches =
         minKpm === 0 ||
         (member.stats?.kpm ?? 0) >= minKpm ||
@@ -291,9 +296,9 @@ export default function MembersPage() {
         minKdr === 0 ||
         (member.stats?.kd ?? 0) >= minKdr ||
         (member.hllRecord?.kdr ?? 0) >= minKdr;
-      return roleMatches && kpmMatches && kdrMatches;
+      return roleMatches && nameMatches && kpmMatches && kdrMatches;
     });
-  }, [members, roleFilter, minKpm, minKdr]);
+  }, [members, roleFilter, nameQuery, minKpm, minKdr]);
 
   const sorted = useMemo(() => {
     const arr = [...filtered];
@@ -394,7 +399,18 @@ export default function MembersPage() {
           </div>
         ) : (
           <>
-            <div className="flex flex-wrap items-end gap-4 border-b border-white/5 bg-zinc-900/40 p-4">
+            <div className="sticky top-0 z-10 flex flex-wrap items-end gap-4 border-b border-white/5 bg-zinc-900/40 p-4 backdrop-blur">
+              <label className="min-w-56 flex-1">
+                <span className="label">Search by name</span>
+                <input
+                  className="input"
+                  type="search"
+                  placeholder="Type a name"
+                  value={nameQuery}
+                  onChange={(e) => setNameQuery(e.target.value)}
+                />
+              </label>
+
               <label className="min-w-56 flex-1">
                 <span className="label">Role</span>
                 <select
