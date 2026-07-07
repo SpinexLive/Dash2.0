@@ -133,17 +133,18 @@ export async function pollRecruits() {
   }
 
   if (activeMessageIds.size > 0) {
-    await prisma.recruit.deleteMany({
+    const removed = await prisma.recruit.deleteMany({
       where: {
-        status: 'pending',
         messageId: { notIn: [...activeMessageIds] },
       },
     });
+    console.log(
+      `[recruit-poll] scanned=${scanned} withEmbeds=${embeds} applications=${parsed} removedRows=${removed.count}`,
+    );
   } else {
-    await prisma.recruit.deleteMany({ where: { status: 'pending' } });
+    const removed = await prisma.recruit.deleteMany({ where: { status: 'pending' } });
+    console.log(
+      `[recruit-poll] scanned=${scanned} withEmbeds=${embeds} applications=${parsed} removedRows=${removed.count}`,
+    );
   }
-
-  console.log(
-    `[recruit-poll] scanned=${scanned} withEmbeds=${embeds} applications=${parsed} removedPending=${activeMessageIds.size === 0 ? 'all' : 'stale'}`,
-  );
 }
