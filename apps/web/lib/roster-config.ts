@@ -46,6 +46,7 @@ export const ROLES: RoleDef[] = [
   { key: 'sniper', name: 'Sniper', icon: ICON('sniper.png') },
   { key: 'supplies', name: 'Supplies', icon: ICON('support.png') },
   { key: 'supply-truck', name: 'Supply Truck', icon: ICON('supplytruck.png') },
+  { key: 'truck-driver', name: 'Truck Driver', icon: ICON('driver.png') },
   { key: 'at-gun', name: 'AT Gun', icon: ICON('atgun.png') },
 ];
 

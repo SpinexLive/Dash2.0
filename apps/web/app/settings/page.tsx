@@ -110,6 +110,7 @@ const ROLE_EMOJI_FIELDS = [
   ['garrison', 'Garrison'],
   ['supplies', 'Supplies'],
   ['supply-truck', 'Supply Truck'],
+  ['truck-driver', 'Truck Driver'],
   ['at-gun', 'AT Gun'],
   ['sniper', 'Sniper Role'],
 ] as const;

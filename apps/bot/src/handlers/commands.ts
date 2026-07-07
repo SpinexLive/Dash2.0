@@ -206,6 +206,7 @@ const DEFAULT_ROLE_ICON: Record<string, string> = {
   garrison: '',
   supplies: '',
   'supply-truck': '',
+  'truck-driver': '',
   'at-gun': '',
   sniper: '',
 };
