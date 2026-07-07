@@ -49,9 +49,10 @@ nginx/     Reverse proxy config
 ## Discord setup
 
 1. Create an application at https://discord.com/developers/applications.
-   Use `http://localhost:3000/callback` locally and
-   `http://45.151.81.182:3000/callback` on the VPS.
-2. OAuth2 → add redirect `http://localhost:3000/callback`.
+   Use `http://localhost:3000/callback` locally and your deployed app URL
+   (for example, `https://your-domain.example/callback`) in production.
+2. OAuth2 → add redirect `http://localhost:3000/callback` and your production
+   callback URL as needed.
 3. Bot → enable **Server Members**, **Message Content**, and **Voice State**
    privileged intents. Invite the bot with `bot` + `applications.commands` scopes
    and Manage Roles permission.
@@ -76,9 +77,9 @@ nginx/     Reverse proxy config
 - **Briefing** — the bot snapshots voice presence to Redis; the API queries CRCON
   for in-game players and cross-references game id → Discord id.
 
-## Production deploy (VPS)
+## Production deploy
 
-For the current IP-based VPS setup, see [`VPS_DEPLOY.md`](./VPS_DEPLOY.md).
+For host-specific deployment guidance, see [`VPS_DEPLOY.md`](./VPS_DEPLOY.md).
 Then:
 
 ```bash
