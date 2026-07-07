@@ -1,9 +1,10 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import type Redis from 'ioredis';
+import Redis from 'ioredis';
 import { prisma } from '@hll/db';
 import { REDIS } from '../redis/redis.module';
 
 export const BOT_COMMAND_CHANNEL = 'bot:commands';
+const BOT_RESPONSE_CHANNEL = 'bot:responses';
 
 /** Steam IDs are numeric; Epic IDs are 32-char hex strings. */
 function detectPlatform(id: string | null): 'steam' | 'epic' | null {
@@ -137,10 +138,66 @@ export class RecruitsService {
   }
 
   async refresh() {
-    await this.redis.publish(
-      BOT_COMMAND_CHANNEL,
-      JSON.stringify({ type: 'pollRecruits' }),
-    );
+    const requestId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const subscriber = new Redis(process.env.REDIS_URL ?? 'redis://localhost:6379');
+
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          cleanup();
+          reject(new Error('Timed out waiting for recruit refresh'));
+        }, 60000);
+
+        const onError = (error: Error) => {
+          cleanup();
+          reject(error);
+        };
+
+        const onMessage = (channel: string, message: string) => {
+          if (channel !== BOT_RESPONSE_CHANNEL) return;
+
+          try {
+            const payload = JSON.parse(message) as {
+              requestId?: string;
+              type?: string;
+            };
+            if (payload.requestId === requestId && payload.type === 'recruitPollComplete') {
+              cleanup();
+              resolve();
+            }
+          } catch {
+            // ignore malformed responses
+          }
+        };
+
+        const cleanup = () => {
+          clearTimeout(timeout);
+          subscriber.off('message', onMessage);
+          subscriber.off('error', onError);
+          void subscriber.unsubscribe(BOT_RESPONSE_CHANNEL).catch(() => {});
+          void subscriber.quit().catch(() => {});
+        };
+
+        subscriber.on('message', onMessage);
+        subscriber.on('error', onError);
+
+        void subscriber.subscribe(BOT_RESPONSE_CHANNEL).then(() => {
+          void this.redis
+            .publish(BOT_COMMAND_CHANNEL, JSON.stringify({ type: 'pollRecruits', requestId }))
+            .catch((error) => {
+              cleanup();
+              reject(error);
+            });
+        }).catch((error) => {
+          cleanup();
+          reject(error);
+        });
+      });
+    } catch (error) {
+      console.error('[recruits] recruit refresh failed', error);
+      throw error;
+    }
+
     return { ok: true };
   }
 

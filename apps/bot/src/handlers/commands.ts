@@ -9,6 +9,7 @@ import {
 } from 'discord.js';
 import { prisma } from '@hll/db';
 import { client, GUILD_ID } from '../client';
+import { redis } from '../redis';
 import { raidHelper } from '../services/raidhelper';
 import { syncAllRoles } from '../jobs/role-sync.job';
 import { syncVoicePresence } from '../jobs/presence-sync.job';
@@ -36,8 +37,11 @@ interface RemindPendingCommand {
 interface SyncMembersCommand {
   type: 'syncMembers';
 }
+const BOT_RESPONSE_CHANNEL = 'bot:responses';
+
 interface PollRecruitsCommand {
   type: 'pollRecruits';
+  requestId?: string;
 }
 interface ShareMatchCommand {
   type: 'shareMatch';
@@ -92,6 +96,12 @@ export async function handleBotCommand(raw: string) {
     await syncGuildMeta().catch(() => {});
   } else if (cmd.type === 'pollRecruits') {
     await pollRecruits();
+    if (cmd.requestId) {
+      await redis.publish(
+        BOT_RESPONSE_CHANNEL,
+        JSON.stringify({ type: 'recruitPollComplete', requestId: cmd.requestId }),
+      );
+    }
   } else if (cmd.type === 'shareMatch') {
     await shareMatch(cmd.channelId, cmd.content);
   } else if (cmd.type === 'scrapeHllRecords') {
