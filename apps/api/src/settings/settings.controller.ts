@@ -14,6 +14,7 @@ type RankRoleSettings = {
   recruit: RoleOption[];
   member: RoleOption[];
   competitive: RoleOption[];
+  collab: RoleOption[];
 };
 type BriefingVoiceChannelSettings = {
   categoryId: string | null;
@@ -375,16 +376,18 @@ function normalizeRankRoleSettings(input: unknown): RankRoleSettings {
       recruit: [],
       member: cleanRoleOptions(input),
       competitive: [],
+      collab: [],
     };
   }
   if (!input || typeof input !== 'object') {
-    return { recruit: [], member: [], competitive: [] };
+    return { recruit: [], member: [], competitive: [], collab: [] };
   }
   const src = input as Partial<Record<keyof RankRoleSettings, unknown>>;
   return {
     recruit: cleanRoleOptions(src.recruit),
     member: cleanRoleOptions(src.member),
     competitive: cleanRoleOptions(src.competitive),
+    collab: cleanRoleOptions(src.collab),
   };
 }
 
@@ -394,6 +397,7 @@ function hydrateRankRoleSettings(saved: unknown, current: RoleOption[]): RankRol
     recruit: hydrateRoleOptions(normalized.recruit, current),
     member: hydrateRoleOptions(normalized.member, current),
     competitive: hydrateRoleOptions(normalized.competitive, current),
+    collab: hydrateRoleOptions(normalized.collab, current),
   };
 }
 

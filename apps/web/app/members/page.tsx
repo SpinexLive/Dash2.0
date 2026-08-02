@@ -21,6 +21,7 @@ interface Member {
   currentRoleId: string | null;
   isMember: boolean;
   rankRole: { id: string; name: string } | null;
+  roleGroupNames: string[];
   gameAccounts: { platform: string; gameId: string; verified: boolean }[];
   stats: { kills: number; deaths: number; kd: number; kpm: number; matchesPlayed: number } | null;
   hllRecord: {
@@ -272,19 +273,19 @@ export default function MembersPage() {
   }
 
   const roleOptions = useMemo(() => {
-    const byName = new Map<string, { id: string; name: string }>();
+    const byName = new Set<string>();
     for (const member of members) {
-      if (member.rankRole?.name) byName.set(member.rankRole.name, member.rankRole);
+      member.roleGroupNames.forEach((name) => byName.add(name));
     }
-    return [...byName.values()].sort((a, b) =>
-      a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
+    return [...byName].sort((a, b) =>
+      a.localeCompare(b, undefined, { sensitivity: 'base' }),
     );
   }, [members]);
 
   const filtered = useMemo(() => {
     const normalizedQuery = nameQuery.trim().toLowerCase();
     return members.filter((member) => {
-      const roleMatches = !roleFilter || member.rankRole?.name === roleFilter;
+      const roleMatches = !roleFilter || member.roleGroupNames.includes(roleFilter);
       const nameMatches =
         normalizedQuery.length === 0 ||
         member.serverNick.toLowerCase().includes(normalizedQuery);
@@ -420,8 +421,8 @@ export default function MembersPage() {
                 >
                   <option value="">All roles</option>
                   {roleOptions.map((role) => (
-                    <option key={role.id} value={role.name}>
-                      {role.name}
+                    <option key={role} value={role}>
+                      {role}
                     </option>
                   ))}
                 </select>
@@ -592,10 +593,14 @@ export default function MembersPage() {
                     />
                   </td>
                   <td className="text-center">
-                    {m.rankRole ? (
-                      <span className="badge bg-brand/15 text-brand-bright">
-                        {m.rankRole.name}
-                      </span>
+                    {m.roleGroupNames.length > 0 ? (
+                      <div className="flex flex-wrap justify-center gap-1">
+                        {m.roleGroupNames.map((roleName) => (
+                          <span key={roleName} className="badge bg-brand/15 text-brand-bright">
+                            {roleName}
+                          </span>
+                        ))}
+                      </div>
                     ) : (
                       <span className="badge bg-zinc-500/10 text-zinc-400">—</span>
                     )}

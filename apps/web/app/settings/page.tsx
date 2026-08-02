@@ -55,6 +55,7 @@ interface RankRoleSettings {
   recruit: RoleOption[];
   member: RoleOption[];
   competitive: RoleOption[];
+  collab: RoleOption[];
 }
 
 interface RosterEmojiSettings {
@@ -82,6 +83,7 @@ const EMPTY_RANK_ROLES: RankRoleSettings = {
   recruit: [],
   member: [],
   competitive: [],
+  collab: [],
 };
 
 const EMPTY_BRIEFING_VOICE_CHANNELS: BriefingVoiceChannelSettings = {
@@ -319,6 +321,20 @@ export default function SettingsPage() {
     });
   }
 
+  function toggleCollabRole(role: RoleOption, checked: boolean) {
+    if (!settings) return;
+    const ids = new Set(settings.rankRoles.collab.map((r) => r.id));
+    if (checked) ids.add(role.id);
+    else ids.delete(role.id);
+    setSettings({
+      ...settings,
+      rankRoles: {
+        ...settings.rankRoles,
+        collab: roles.filter((r) => ids.has(r.id)).map((r) => ({ id: r.id, name: r.name })),
+      },
+    });
+  }
+
   function updateRosterEmoji(
     group: keyof RosterEmojiSettings,
     key: string,
@@ -387,8 +403,10 @@ export default function SettingsPage() {
   const recruitRankId = settings.rankRoles.recruit[0]?.id ?? '';
   const memberRankId = settings.rankRoles.member[0]?.id ?? '';
   const competitiveRankId = settings.rankRoles.competitive[0]?.id ?? '';
+  const collabRankId = settings.rankRoles.collab[0]?.id ?? '';
   const adminRoleIds = new Set(settings.adminRoleIds);
   const memberRoleIds = new Set(settings.memberRoleIds);
+  const collabRoleIds = new Set(settings.rankRoles.collab.map((role) => role.id));
 
   return (
     <div className="animate-fade-in flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overflow-x-hidden">
@@ -683,7 +701,15 @@ export default function SettingsPage() {
                 maxHeightClass="max-h-72"
                 onToggle={toggleMemberRole}
               />
-              <div className="grid gap-4 lg:grid-cols-3">
+              <RoleChecklist
+                title="Collab Roles"
+                roles={roles}
+                selectedIds={collabRoleIds}
+                noRoles={noRoles}
+                maxHeightClass="max-h-72"
+                onToggle={toggleCollabRole}
+              />
+              <div className="grid gap-4 lg:grid-cols-4">
                 <RoleSelect
                   title="Recruit"
                   roles={roles}
@@ -704,6 +730,13 @@ export default function SettingsPage() {
                   value={competitiveRankId}
                   noRoles={noRoles}
                   onChange={(roleId) => setRankRole('competitive', roleId)}
+                />
+                <RoleSelect
+                  title="Collab"
+                  roles={roles}
+                  value={collabRankId}
+                  noRoles={noRoles}
+                  onChange={(roleId) => setRankRole('collab', roleId)}
                 />
               </div>
             </div>
@@ -1104,6 +1137,7 @@ function normalizeRankRoles(input: unknown): RankRoleSettings {
     recruit: cleanRoleOptions(src.recruit),
     member: cleanRoleOptions(src.member),
     competitive: cleanRoleOptions(src.competitive),
+    collab: cleanRoleOptions(src.collab),
   };
 }
 

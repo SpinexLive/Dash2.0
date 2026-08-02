@@ -66,15 +66,37 @@ export class MembersController {
       flattenRankRoleSettings(settings?.rankRoles),
       discordRoles,
     );
+    const collabRoleIds = roleIdsFromSettings(settings?.rankRoles, 'collab');
 
-    // Default to active members only — those who left the guild or lost the
-    // member role stay in the DB (isMember=false) but are hidden here.
-    const isMemberFilter = isMember === undefined ? true : isMember === 'true';
+    // Default to active members plus any collab-role users who are not clan
+    // members but should still appear on the roster page.
+    const isMemberFilter = isMember === undefined ? undefined : isMember === 'true';
+    const where =
+      isMember === 'false'
+        ? { isMember: false }
+        : isMember === 'true'
+          ? { isMember: true }
+          : {
+              OR: [
+                { isMember: true },
+                ...(collabRoleIds.length
+                  ? [
+                      {
+                        user: {
+                          roles: {
+                            some: { roleId: { in: collabRoleIds } },
+                          },
+                        },
+                      },
+                    ]
+                  : []),
+              ],
+            };
 
     const members = await prisma.member.findMany({
       where: {
         ...(roleId ? { currentRoleId: roleId } : {}),
-        isMember: isMemberFilter,
+        ...where,
       },
       include: {
         user: { include: { gameAccounts: true, roles: true, hllRecord: true } },
@@ -101,6 +123,7 @@ export class MembersController {
       const userRoleIds = new Set(m.user.roles.map((r) => r.roleId));
       // rankRoles is ordered highest-priority first; pick the first the user holds.
       const rankRole = rankRoles.find((r) => userRoleIds.has(r.id)) ?? null;
+      const roleGroupNames = [...new Set(rankRoles.filter((r) => userRoleIds.has(r.id)).map((r) => r.name))];
       const a = statsByUser.get(m.user.id.toString());
       const avgKills = a ? Number(a._avg.kills ?? 0) : 0;
       const avgDeaths = a ? Number(a._avg.deaths ?? 0) : 0;
@@ -109,6 +132,7 @@ export class MembersController {
         currentRoleId: m.currentRoleId,
         isMember: m.isMember,
         rankRole,
+        roleGroupNames,
         joinedAt: m.joinedAt,
         discordId: m.user.discordId,
         serverNick: m.user.serverNick ?? m.user.username,
@@ -173,6 +197,7 @@ export class MembersController {
     );
     const userRoleIds = new Set(member.user.roles.map((r) => r.roleId));
     const rankRole = rankRoles.find((r) => userRoleIds.has(r.id)) ?? null;
+    const roleGroupNames = [...new Set(rankRoles.filter((r) => userRoleIds.has(r.id)).map((r) => r.name))];
 
     const [aggregate, recentMatches, rosterSlots] = await Promise.all([
       prisma.matchPlayerStat.aggregate({
@@ -206,6 +231,7 @@ export class MembersController {
       currentRoleId: member.currentRoleId,
       isMember: member.isMember,
       rankRole,
+      roleGroupNames,
       joinedAt: member.joinedAt,
       discordId: member.user.discordId,
       username: member.user.username,
@@ -446,7 +472,26 @@ function flattenRankRoleSettings(saved: unknown): RoleOption[] {
     ...roleOptions(src.competitive),
     ...roleOptions(src.member),
     ...roleOptions(src.recruit),
+    ...roleOptions(src.collab),
   ];
+}
+
+function roleIdsFromSettings(saved: unknown, group: 'recruit' | 'member' | 'competitive' | 'collab') {
+  if (Array.isArray(saved)) return group === 'member' ? roleIdSet(saved) : [];
+  if (!saved || typeof saved !== 'object') return [];
+  const src = saved as Record<string, unknown>;
+  return roleIdSet(src[group]);
+}
+
+function roleIdSet(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((role) => {
+      if (typeof role === 'string') return role;
+      if (role && typeof role === 'object' && 'id' in role && typeof role.id === 'string') return role.id;
+      return null;
+    })
+    .filter((roleId): roleId is string => Boolean(roleId));
 }
 
 function roleOptions(input: unknown): RoleOption[] {
