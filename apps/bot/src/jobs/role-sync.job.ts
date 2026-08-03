@@ -38,45 +38,18 @@ export async function syncAllRoles() {
 
   const roles = await guild.roles.fetch();
   const processedUserIds = new Set<string>();
+
   for (const roleId of memberRoleIds) {
     const role = roles.get(roleId);
     if (!role) continue;
 
-    let members: Collection<string, GuildMember> | null = null;
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      try {
-        const roleMembers = role.members as unknown as
-          | Collection<string, GuildMember>
-          | { cache?: Collection<string, GuildMember> }
-          | undefined;
-
-        members =
-          roleMembers instanceof Collection
-            ? roleMembers
-            : (roleMembers?.cache ?? new Collection<string, GuildMember>());
-        break;
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        const retryAfter = getRetryAfterMs(error);
-        if (attempt === 2) {
-          console.warn('[bot] role sync role member fetch rate limited or failed after retries:', message);
-          return;
-        }
-        const waitMs = retryAfter ?? MEMBER_FETCH_RETRY_DELAY_MS;
-        console.warn(`[bot] role sync role member fetch failed, retrying in ${waitMs / 1000}s:`, message);
-        await delay(waitMs);
-      }
-    }
-
-    if (!members) continue;
-
+    const members = role.members as unknown as Collection<string, GuildMember>;
     for (const gm of members.values()) {
       if (gm.user.bot) continue;
       if (processedUserIds.has(gm.id)) continue;
       processedUserIds.add(gm.id);
 
       const roleIds = [...gm.roles.cache.keys()];
-
       const user = await prisma.user.upsert({
         where: { discordId: gm.id },
         create: {
@@ -119,6 +92,10 @@ export async function syncAllRoles() {
       data: { isMember: false },
     });
   }
+}
+
+export function memberHasConfiguredRole(memberRoleIds: string[], guildMemberRoleIds: string[]) {
+  return hasAnyRole(guildMemberRoleIds, memberRoleIds);
 }
 
 function memberRoles(settings: { memberRoleId: string | null; memberRoleIds?: unknown } | null) {
