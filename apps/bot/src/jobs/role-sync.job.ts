@@ -45,9 +45,15 @@ export async function syncAllRoles() {
     let members: Collection<string, GuildMember> | null = null;
     for (let attempt = 0; attempt < 3; attempt += 1) {
       try {
-        members = new Collection<string, GuildMember>(
-          Array.from((role.members as unknown as { cache: Collection<string, GuildMember> }).cache.entries()),
-        );
+        const roleMembers = role.members as unknown as
+          | Collection<string, GuildMember>
+          | { cache?: Collection<string, GuildMember> }
+          | undefined;
+
+        members =
+          roleMembers instanceof Collection
+            ? roleMembers
+            : (roleMembers?.cache ?? new Collection<string, GuildMember>());
         break;
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
