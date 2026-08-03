@@ -48,13 +48,14 @@ export async function syncAllRoles() {
       });
     }
 
-    // The directory only contains holders of a configured member role.
-    if (hasAnyRole(roleIds, memberRoleIds)) {
-      await prisma.member.upsert({
-        where: { userId: user.id },
-        create: { userId: user.id, isMember: true },
-        update: { isMember: true },
-      });
+    const shouldBeMember = hasAnyRole(roleIds, memberRoleIds);
+    await prisma.member.upsert({
+      where: { userId: user.id },
+      create: { userId: user.id, isMember: shouldBeMember },
+      update: { isMember: shouldBeMember },
+    });
+
+    if (shouldBeMember) {
       keepUserIds.push(user.id);
     }
   }
@@ -62,14 +63,12 @@ export async function syncAllRoles() {
   // Members who no longer hold the configured role (or left the guild) are
   // kept in the database for history but flagged inactive so the directory
   // can hide them. We never delete them.
-  if (memberRoleIds.length) {
-    const inactiveUserIds = findInactiveMemberUserIds(existingMemberUserIds, keepUserIds);
-    if (inactiveUserIds.length) {
-      await prisma.member.updateMany({
-        where: { userId: { in: inactiveUserIds } },
-        data: { isMember: false },
-      });
-    }
+  const inactiveUserIds = findInactiveMemberUserIds(existingMemberUserIds, keepUserIds);
+  if (inactiveUserIds.length) {
+    await prisma.member.updateMany({
+      where: { userId: { in: inactiveUserIds } },
+      data: { isMember: false },
+    });
   }
 }
 
