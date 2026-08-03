@@ -36,6 +36,7 @@ interface RemindPendingCommand {
 }
 interface SyncMembersCommand {
   type: 'syncMembers';
+  requestId?: string;
 }
 const BOT_RESPONSE_CHANNEL = 'bot:responses';
 
@@ -91,9 +92,25 @@ export async function handleBotCommand(raw: string) {
     console.log(`[bot] remindPending requested for roster ${cmd.rosterId}`);
     await remindPending(cmd.rosterId);
   } else if (cmd.type === 'syncMembers') {
-    await syncAllRoles();
-    await syncVoicePresence().catch(() => {});
-    await syncGuildMeta().catch(() => {});
+    try {
+      await syncAllRoles();
+      await syncVoicePresence().catch(() => {});
+      await syncGuildMeta().catch(() => {});
+      await redis.publish(
+        BOT_RESPONSE_CHANNEL,
+        JSON.stringify({ type: 'syncMembersComplete', requestId: cmd.requestId, ok: true }),
+      );
+    } catch (error) {
+      await redis.publish(
+        BOT_RESPONSE_CHANNEL,
+        JSON.stringify({
+          type: 'syncMembersComplete',
+          requestId: cmd.requestId,
+          ok: false,
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      );
+    }
   } else if (cmd.type === 'pollRecruits') {
     await pollRecruits();
     if (cmd.requestId) {

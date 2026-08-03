@@ -13,14 +13,15 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { IsOptional, IsString } from 'class-validator';
-import type Redis from 'ioredis';
 import axios from 'axios';
 import { prisma } from '@hll/db';
+import Redis from 'ioredis';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { AccessGuard } from '../common/guards/access.guard';
 import { REDIS } from '../redis/redis.module';
 
 const BOT_COMMAND_CHANNEL = 'bot:commands';
+const BOT_RESPONSE_CHANNEL = 'bot:responses';
 type RoleOption = { id: string; name: string; position?: number; color?: string };
 type SteamBanPlayer = {
   SteamId: string;
@@ -313,11 +314,60 @@ export class MembersController {
   /** Ask the bot to re-sync the full guild member list into the directory. */
   @Post('sync')
   async sync() {
-    await this.redis.publish(
-      BOT_COMMAND_CHANNEL,
-      JSON.stringify({ type: 'syncMembers' }),
-    );
-    return { ok: true };
+    const requestId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const subscriber = new Redis(process.env.REDIS_URL ?? 'redis://localhost:6379');
+
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          cleanup();
+          reject(new Error('Discord sync timed out after 180 seconds.'));
+        }, 180_000);
+
+        const onMessage = (channel: string, message: string) => {
+          if (channel !== BOT_RESPONSE_CHANNEL) return;
+          try {
+            const payload = JSON.parse(message) as { type?: string; requestId?: string; ok?: boolean; error?: string };
+            if (payload.type === 'syncMembersComplete' && payload.requestId === requestId) {
+              cleanup();
+              resolve();
+            }
+          } catch {
+            // ignore malformed responses
+          }
+        };
+
+        const onError = (error: Error) => {
+          cleanup();
+          reject(error);
+        };
+
+        const cleanup = () => {
+          clearTimeout(timeout);
+          subscriber.off('message', onMessage);
+          subscriber.off('error', onError);
+          void subscriber.unsubscribe(BOT_RESPONSE_CHANNEL).catch(() => {});
+          void subscriber.quit().catch(() => {});
+        };
+
+        subscriber.on('message', onMessage);
+        subscriber.on('error', onError);
+        void subscriber.subscribe(BOT_RESPONSE_CHANNEL).then(() => {
+          void this.redis.publish(BOT_COMMAND_CHANNEL, JSON.stringify({ type: 'syncMembers', requestId })).catch((error) => {
+            cleanup();
+            reject(error);
+          });
+        }).catch((error) => {
+          cleanup();
+          reject(error);
+        });
+      });
+
+      return { ok: true, status: 'complete' };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Discord sync failed.';
+      return { ok: false, status: 'error', message };
+    }
   }
 
   /** Ask the bot to refresh HLLRecords stats for all Steam-linked members. */

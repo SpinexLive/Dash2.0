@@ -1,5 +1,6 @@
 import { prisma } from '@hll/db';
 import { client, GUILD_ID } from '../client';
+import { Collection, type GuildMember } from 'discord.js';
 
 const MEMBER_FETCH_RETRY_DELAY_MS = 30_000;
 
@@ -20,60 +21,85 @@ export async function syncAllRoles() {
   const guild = await client.guilds.fetch(GUILD_ID);
   const existingMembers = await prisma.member.findMany({ select: { userId: true } });
 
-  let members: Awaited<ReturnType<typeof guild.members.fetch>> | null = null;
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    try {
-      members = await guild.members.fetch();
-      break;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      if (attempt === 2) {
-        console.warn('[bot] role sync member fetch rate limited or failed after retries:', message);
-        return;
-      }
-      console.warn(`[bot] role sync member fetch failed, retrying in ${MEMBER_FETCH_RETRY_DELAY_MS / 1000}s:`, message);
-      await delay(MEMBER_FETCH_RETRY_DELAY_MS);
-    }
-  }
-
-  if (!members) return;
-
   // Track the userIds that should remain in the directory (member-role holders).
   const keepUserIds: bigint[] = [];
   const existingMemberUserIds = existingMembers.map((member) => member.userId);
 
-  for (const gm of members.values()) {
-    if (gm.user.bot) continue;
-    const roleIds = [...gm.roles.cache.keys()];
-
-    const user = await prisma.user.upsert({
-      where: { discordId: gm.id },
-      create: {
-        discordId: gm.id,
-        username: gm.user.username,
-        serverNick: gm.nickname,
-        avatar: gm.user.avatar,
-      },
-      update: { username: gm.user.username, serverNick: gm.nickname },
-    });
-
-    await prisma.userRole.deleteMany({ where: { userId: user.id } });
-    if (roleIds.length) {
-      await prisma.userRole.createMany({
-        data: roleIds.map((roleId) => ({ userId: user.id, roleId })),
-        skipDuplicates: true,
+  if (!memberRoleIds.length) {
+    const inactiveUserIds = findInactiveMemberUserIds(existingMemberUserIds, keepUserIds);
+    if (inactiveUserIds.length) {
+      await prisma.member.updateMany({
+        where: { userId: { in: inactiveUserIds } },
+        data: { isMember: false },
       });
     }
+    return;
+  }
 
-    const shouldBeMember = hasAnyRole(roleIds, memberRoleIds);
-    await prisma.member.upsert({
-      where: { userId: user.id },
-      create: { userId: user.id, isMember: shouldBeMember },
-      update: { isMember: shouldBeMember },
-    });
+  const roles = await guild.roles.fetch();
+  const processedUserIds = new Set<string>();
+  for (const roleId of memberRoleIds) {
+    const role = roles.get(roleId);
+    if (!role) continue;
 
-    if (shouldBeMember) {
-      keepUserIds.push(user.id);
+    let members: Collection<string, GuildMember> | null = null;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        members = new Collection<string, GuildMember>(
+          Array.from((role.members as unknown as { cache: Collection<string, GuildMember> }).cache.entries()),
+        );
+        break;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        const retryAfter = getRetryAfterMs(error);
+        if (attempt === 2) {
+          console.warn('[bot] role sync role member fetch rate limited or failed after retries:', message);
+          return;
+        }
+        const waitMs = retryAfter ?? MEMBER_FETCH_RETRY_DELAY_MS;
+        console.warn(`[bot] role sync role member fetch failed, retrying in ${waitMs / 1000}s:`, message);
+        await delay(waitMs);
+      }
+    }
+
+    if (!members) continue;
+
+    for (const gm of members.values()) {
+      if (gm.user.bot) continue;
+      if (processedUserIds.has(gm.id)) continue;
+      processedUserIds.add(gm.id);
+
+      const roleIds = [...gm.roles.cache.keys()];
+
+      const user = await prisma.user.upsert({
+        where: { discordId: gm.id },
+        create: {
+          discordId: gm.id,
+          username: gm.user.username,
+          serverNick: gm.nickname,
+          avatar: gm.user.avatar,
+        },
+        update: { username: gm.user.username, serverNick: gm.nickname },
+      });
+
+      await prisma.userRole.deleteMany({ where: { userId: user.id } });
+      if (roleIds.length) {
+        await prisma.userRole.createMany({
+          data: roleIds.map((roleId) => ({ userId: user.id, roleId })),
+          skipDuplicates: true,
+        });
+      }
+
+      const shouldBeMember = hasAnyRole(roleIds, memberRoleIds);
+      await prisma.member.upsert({
+        where: { userId: user.id },
+        create: { userId: user.id, isMember: shouldBeMember },
+        update: { isMember: shouldBeMember },
+      });
+
+      if (shouldBeMember) {
+        keepUserIds.push(user.id);
+      }
     }
   }
 
@@ -101,6 +127,23 @@ function memberRoles(settings: { memberRoleId: string | null; memberRoleIds?: un
 
 function hasAnyRole(roleIds: string[], allowedRoleIds: string[]) {
   return allowedRoleIds.some((roleId) => roleIds.includes(roleId));
+}
+
+function getRetryAfterMs(error: unknown) {
+  if (typeof error !== 'object' || error === null) return null;
+  const maybeError = error as Record<string, unknown>;
+  const retryAfter = maybeError.retryAfter ?? maybeError.retry_after;
+  if (typeof retryAfter === 'number') return Math.max(retryAfter * 1000, 0);
+  if (typeof retryAfter === 'string' && /^\d+(\.\d+)?$/.test(retryAfter)) {
+    return Math.max(Number(retryAfter) * 1000, 0);
+  }
+  const data = maybeError.data as Record<string, unknown> | undefined;
+  const dataRetryAfter = data?.retry_after ?? data?.retryAfter;
+  if (typeof dataRetryAfter === 'number') return Math.max(dataRetryAfter * 1000, 0);
+  if (typeof dataRetryAfter === 'string' && /^\d+(\.\d+)?$/.test(dataRetryAfter)) {
+    return Math.max(Number(dataRetryAfter) * 1000, 0);
+  }
+  return null;
 }
 
 function delay(ms: number) {

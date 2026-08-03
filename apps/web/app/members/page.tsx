@@ -83,6 +83,8 @@ export default function MembersPage() {
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'success' | 'error'>('idle');
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [refreshingHllr, setRefreshingHllr] = useState(false);
   const [checkingVac, setCheckingVac] = useState(false);
   const [vacResults, setVacResults] = useState<Record<string, VacBanResult>>({});
@@ -122,14 +124,24 @@ export default function MembersPage() {
 
   async function sync() {
     setSyncing(true);
+    setSyncStatus('syncing');
+    setSyncMessage('Waiting for Discord to finish the member sync…');
+    setError(null);
     try {
-      await api('/members/sync', { method: 'POST' });
-      // The bot re-syncs against Discord; give it a moment then reload.
-      setTimeout(() => {
-        load();
-        setSyncing(false);
-      }, 2500);
-    } catch {
+      const result = await api<{ ok: boolean; status: string; message?: string }>('/members/sync', {
+        method: 'POST',
+      });
+      if (!result.ok) {
+        throw new Error(result.message ?? 'Discord sync failed.');
+      }
+      await load();
+      setSyncStatus('success');
+      setSyncMessage('Discord sync completed.');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Discord sync failed.';
+      setSyncStatus('error');
+      setSyncMessage(message);
+    } finally {
       setSyncing(false);
     }
   }
@@ -387,6 +399,16 @@ export default function MembersPage() {
           Export
         </button>
       </PageHeader>
+
+      {syncStatus !== 'idle' && (
+        <div
+          className={`mb-3 rounded-lg border px-3 py-2 text-sm ${syncStatus === 'success' ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300' : syncStatus === 'error' ? 'border-rose-500/20 bg-rose-500/10 text-rose-300' : 'border-brand/20 bg-brand/10 text-zinc-200'}`}
+          aria-live="polite"
+        >
+          {syncStatus === 'syncing' ? '⏳ ' : syncStatus === 'success' ? '✓ ' : '⚠ '}
+          {syncMessage}
+        </div>
+      )}
 
       <div className="card flex min-h-0 flex-1 flex-col overflow-auto">
         {loading ? (
