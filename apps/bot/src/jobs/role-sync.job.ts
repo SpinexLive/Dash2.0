@@ -1,6 +1,11 @@
 import { prisma } from '@hll/db';
 import { client, GUILD_ID } from '../client';
 
+export function findInactiveMemberUserIds(existingMemberUserIds: bigint[], keepUserIds: bigint[]) {
+  const keepSet = new Set(keepUserIds.map((id) => id.toString()));
+  return existingMemberUserIds.filter((id) => !keepSet.has(id.toString()));
+}
+
 /**
  * Full role re-sync: snapshots every guild member's roles into the DB and
  * recomputes `is_member` from the configured member roles. Run on a schedule as a
@@ -10,11 +15,15 @@ export async function syncAllRoles() {
   const settings = await prisma.settings.findUnique({ where: { id: 1 } });
   const memberRoleIds = memberRoles(settings);
 
-  const guild = await client.guilds.fetch(GUILD_ID);
-  const members = await guild.members.fetch();
+  const [guild, members, existingMembers] = await Promise.all([
+    client.guilds.fetch(GUILD_ID),
+    client.guilds.fetch(GUILD_ID).then((g) => g.members.fetch()),
+    prisma.member.findMany({ select: { userId: true } }),
+  ]);
 
   // Track the userIds that should remain in the directory (member-role holders).
   const keepUserIds: bigint[] = [];
+  const existingMemberUserIds = existingMembers.map((member) => member.userId);
 
   for (const gm of members.values()) {
     if (gm.user.bot) continue;
@@ -54,10 +63,13 @@ export async function syncAllRoles() {
   // kept in the database for history but flagged inactive so the directory
   // can hide them. We never delete them.
   if (memberRoleIds.length) {
-    await prisma.member.updateMany({
-      where: { userId: { notIn: keepUserIds.length ? keepUserIds : [BigInt(-1)] } },
-      data: { isMember: false },
-    });
+    const inactiveUserIds = findInactiveMemberUserIds(existingMemberUserIds, keepUserIds);
+    if (inactiveUserIds.length) {
+      await prisma.member.updateMany({
+        where: { userId: { in: inactiveUserIds } },
+        data: { isMember: false },
+      });
+    }
   }
 }
 

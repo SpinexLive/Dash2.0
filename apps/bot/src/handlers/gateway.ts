@@ -44,6 +44,19 @@ export function registerGatewayHandlers() {
     await redis.del(`perm:${member.id}`);
   });
 
+  client.on(Events.GuildMemberRemove, async (member) => {
+    const user = await prisma.user.findUnique({ where: { discordId: member.id } });
+    if (!user) return;
+
+    await prisma.userRole.deleteMany({ where: { userId: user.id } });
+    await prisma.member.updateMany({
+      where: { userId: user.id },
+      data: { isMember: false },
+    });
+
+    await redis.del(`perm:${member.id}`);
+  });
+
   // Keep voice presence fresh on every change.
   client.on(Events.VoiceStateUpdate, () => {
     void syncVoicePresence();
