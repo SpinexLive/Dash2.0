@@ -36,7 +36,13 @@ export class BriefingService {
   /** Who is currently in a given Discord voice channel (kept fresh by the bot). */
   async voiceMembers(channelId: string): Promise<VoicePresence[]> {
     const raw = await this.redis.get(`voice:${channelId}`);
-    return raw ? (JSON.parse(raw) as VoicePresence[]) : [];
+    if (!raw) return [];
+
+    try {
+      return JSON.parse(raw) as VoicePresence[];
+    } catch {
+      return [];
+    }
   }
 
   async savedRosters() {
@@ -96,9 +102,20 @@ export class BriefingService {
   async checkVoice(discordIds: string[]) {
     const channelId = await this.redis.get(BRIEFING_VOICE_CHANNEL_KEY);
     const ids = [...new Set(discordIds.filter(Boolean))];
-    const present = channelId ? await this.liveVoicePresence(ids, channelId) : new Set<string>();
 
-    return Object.fromEntries(discordIds.map((id) => [id, present.has(id)]));
+    if (!channelId || ids.length === 0) {
+      return Object.fromEntries(discordIds.map((id) => [id, false]));
+    }
+
+    const cachedMembers = await this.voiceMembers(channelId);
+    const present = new Set(cachedMembers.map((member) => member.discordId));
+
+    if (cachedMembers.length > 0) {
+      return Object.fromEntries(ids.map((id) => [id, present.has(id)]));
+    }
+
+    const livePresent = await this.liveVoicePresence(ids, channelId);
+    return Object.fromEntries(ids.map((id) => [id, livePresent.has(id)]));
   }
 
   private async liveVoicePresence(discordIds: string[], channelId: string): Promise<Set<string>> {
