@@ -1,6 +1,8 @@
 import { prisma } from '@hll/db';
 import { client, GUILD_ID } from '../client';
 
+const MEMBER_FETCH_RETRY_DELAY_MS = 30_000;
+
 export function findInactiveMemberUserIds(existingMemberUserIds: bigint[], keepUserIds: bigint[]) {
   const keepSet = new Set(keepUserIds.map((id) => id.toString()));
   return existingMemberUserIds.filter((id) => !keepSet.has(id.toString()));
@@ -15,11 +17,26 @@ export async function syncAllRoles() {
   const settings = await prisma.settings.findUnique({ where: { id: 1 } });
   const memberRoleIds = memberRoles(settings);
 
-  const [guild, members, existingMembers] = await Promise.all([
-    client.guilds.fetch(GUILD_ID),
-    client.guilds.fetch(GUILD_ID).then((g) => g.members.fetch()),
-    prisma.member.findMany({ select: { userId: true } }),
-  ]);
+  const guild = await client.guilds.fetch(GUILD_ID);
+  const existingMembers = await prisma.member.findMany({ select: { userId: true } });
+
+  let members: Awaited<ReturnType<typeof guild.members.fetch>> | null = null;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      members = await guild.members.fetch();
+      break;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (attempt === 2) {
+        console.warn('[bot] role sync member fetch rate limited or failed after retries:', message);
+        return;
+      }
+      console.warn(`[bot] role sync member fetch failed, retrying in ${MEMBER_FETCH_RETRY_DELAY_MS / 1000}s:`, message);
+      await delay(MEMBER_FETCH_RETRY_DELAY_MS);
+    }
+  }
+
+  if (!members) return;
 
   // Track the userIds that should remain in the directory (member-role holders).
   const keepUserIds: bigint[] = [];
@@ -84,4 +101,8 @@ function memberRoles(settings: { memberRoleId: string | null; memberRoleIds?: un
 
 function hasAnyRole(roleIds: string[], allowedRoleIds: string[]) {
   return allowedRoleIds.some((roleId) => roleIds.includes(roleId));
+}
+
+function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
