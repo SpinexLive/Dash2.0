@@ -20,6 +20,7 @@ model Settings {
   briefingVoiceChannels Json @default("{}") // category, names, and auto-delete settings for briefing voice channels
   recruitChannelId String?
   matchChannelId   String?  // channel the bot posts match announcements to
+  squadLeaderRoleId String? // temporary role given to roster leadership positions
   updatedAt        DateTime @updatedAt
 
   @@map("settings")
@@ -220,6 +221,9 @@ model Roster {
   eventStartTime    DateTime?
   data              Json?
   status            RosterStatus @default(draft)
+  squadLeaderRoleId String?
+  squadLeaderRoleAssignedAt DateTime?
+  squadLeaderRoleRemovedAt DateTime?
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @default(now()) @updatedAt
 

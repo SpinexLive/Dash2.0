@@ -269,6 +269,8 @@ export default function RosterBuilderPage() {
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [publishRoleDialogOpen, setPublishRoleDialogOpen] = useState(false);
+  const [assignSquadLeaderRole, setAssignSquadLeaderRole] = useState(false);
 
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
@@ -871,16 +873,46 @@ export default function RosterBuilderPage() {
     path: string,
     label: string,
     done?: (saved: SavedRoster | null) => boolean,
+    body?: Record<string, unknown>,
   ) => {
     setBusy(true);
     setStatus(null);
     try {
-      await api(`/roster/event/${eventId}/${path}`, { method: 'POST' });
+      await api(`/roster/event/${eventId}/${path}`, {
+        method: 'POST',
+        ...(body ? { body: JSON.stringify(body) } : {}),
+      });
       if (done) await waitForRosterState(done);
       else await loadSaved();
       setStatus(label);
     } catch (e) {
       setStatus(e instanceof Error ? e.message : `${label} failed`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const postToDiscord = async () => {
+    setPublishRoleDialogOpen(false);
+    await doAction(
+      'post',
+      assignSquadLeaderRole
+        ? 'Posted to Discord. Squad Leader role assignment requested.'
+        : 'Posted to Discord.',
+      (saved) => Boolean(saved?.messageId),
+      { assignSquadLeaderRole },
+    );
+  };
+
+  const cleanupSquadLeaderRole = async () => {
+    if (!confirm('Remove the configured Squad Leader role from every Discord member?')) return;
+    setBusy(true);
+    setStatus(null);
+    try {
+      await api('/roster/cleanup-squad-leader-role', { method: 'POST' });
+      setStatus('Squad Leader role cleanup requested.');
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : 'Squad Leader role cleanup failed');
     } finally {
       setBusy(false);
     }
@@ -951,11 +983,22 @@ export default function RosterBuilderPage() {
           Save roster
         </button>
         <button
-          onClick={() => doAction('post', 'Posted to Discord.', (saved) => Boolean(saved?.messageId))}
+          onClick={() => {
+            setAssignSquadLeaderRole(false);
+            setPublishRoleDialogOpen(true);
+          }}
           disabled={!postEnabled}
           className="btn btn-ghost btn-sm"
         >
           Post to Discord
+        </button>
+        <button
+          onClick={cleanupSquadLeaderRole}
+          disabled={busy}
+          className="btn btn-ghost btn-sm text-amber-300 hover:text-amber-200"
+          title="Remove the configured temporary Squad Leader role from all Discord members"
+        >
+          Cleanup Squad Leader role
         </button>
         {updateVisible && (
           <button
@@ -998,6 +1041,37 @@ export default function RosterBuilderPage() {
         </div>
         {status && <div className="w-full text-xs text-zinc-400">{status}</div>}
       </div>
+
+      {publishRoleDialogOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="card w-full max-w-md p-5 shadow-2xl">
+            <h2 className="text-lg font-semibold text-zinc-100">Post roster to Discord</h2>
+            <p className="mt-2 text-sm text-zinc-400">
+              Would you like to assign the configured temporary Squad Leader role to commanders, artillery, spotters, tank commanders, and squad leaders?
+            </p>
+            <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-lg border border-white/10 bg-white/[0.03] p-3 text-sm text-zinc-300">
+              <input
+                type="checkbox"
+                checked={assignSquadLeaderRole}
+                onChange={(e) => setAssignSquadLeaderRole(e.target.checked)}
+                className="mt-0.5 h-4 w-4 accent-brand"
+              />
+              <span>
+                Assign the Squad Leader role now
+                <span className="mt-1 block text-xs text-zinc-500">It will be removed two hours after this event starts.</span>
+              </span>
+            </label>
+            <div className="mt-5 flex justify-end gap-2">
+              <button onClick={() => setPublishRoleDialogOpen(false)} className="btn btn-ghost btn-sm">
+                Cancel
+              </button>
+              <button onClick={postToDiscord} className="btn btn-primary btn-sm">
+                Post roster
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div
         className={`grid gap-4 lg:min-h-0 lg:flex-1 lg:overflow-hidden ${

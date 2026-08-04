@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { prisma } from '@hll/db';
 import { REDIS } from '../redis/redis.module';
@@ -152,10 +152,24 @@ export class RosterService {
   }
 
   /** Ask the bot to post the roster embed into the event's channel. */
-  async post(eventId: string) {
+  async post(eventId: string, assignSquadLeaderRole = false) {
     const roster = await prisma.roster.findUnique({ where: { raidhelperEventId: eventId } });
     if (!roster) return { ok: false };
+    if (!roster.messageId && assignSquadLeaderRole) {
+      const settings = await prisma.settings.findUnique({ where: { id: 1 }, select: { squadLeaderRoleId: true } });
+      const roleId = settings?.squadLeaderRoleId?.trim();
+      if (!roleId) throw new BadRequestException('Configure a Squad Leader role in Settings before assigning it.');
+      await prisma.roster.update({ where: { id: roster.id }, data: { squadLeaderRoleId: roleId } });
+    }
     await this.publish({ type: 'postRoster', rosterId: roster.id.toString() });
+    return { ok: true };
+  }
+
+  async cleanupSquadLeaderRole() {
+    const settings = await prisma.settings.findUnique({ where: { id: 1 }, select: { squadLeaderRoleId: true } });
+    const roleId = settings?.squadLeaderRoleId?.trim();
+    if (!roleId) throw new BadRequestException('No Squad Leader role is configured in Settings.');
+    await this.publish({ type: 'cleanupSquadLeaderRole', roleId });
     return { ok: true };
   }
 

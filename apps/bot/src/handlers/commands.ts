@@ -34,6 +34,10 @@ interface RemindPendingCommand {
   type: 'remindPending';
   rosterId: string;
 }
+interface CleanupSquadLeaderRoleCommand {
+  type: 'cleanupSquadLeaderRole';
+  roleId: string;
+}
 interface SyncMembersCommand {
   type: 'syncMembers';
   requestId?: string;
@@ -64,6 +68,7 @@ type BotCommand =
   | PostRosterCommand
   | UpdateRosterCommand
   | RemindPendingCommand
+  | CleanupSquadLeaderRoleCommand
   | SyncMembersCommand
   | PollRecruitsCommand
   | ShareMatchCommand
@@ -91,6 +96,8 @@ export async function handleBotCommand(raw: string) {
   } else if (cmd.type === 'remindPending') {
     console.log(`[bot] remindPending requested for roster ${cmd.rosterId}`);
     await remindPending(cmd.rosterId);
+  } else if (cmd.type === 'cleanupSquadLeaderRole') {
+    await cleanupSquadLeaderRole(cmd.roleId);
   } else if (cmd.type === 'syncMembers') {
     try {
       await syncAllRoles();
@@ -186,6 +193,94 @@ async function assignRole(discordId: string, roleId: string) {
   } catch (err) {
     console.error('[bot] assignRole failed', err);
   }
+}
+
+const SQUAD_LEADER_SLOT_KINDS = new Set([
+  'commander',
+  'artillery',
+  'spotter',
+  'tankCommander',
+  'squadLeader',
+]);
+
+function squadLeaderDiscordIds(data: unknown) {
+  const layout = (data ?? {}) as RosterLayout;
+  const ids = new Set<string>();
+  for (const squad of layout.squads ?? []) {
+    for (const slot of squad.slots ?? []) {
+      if (slot.kind && SQUAD_LEADER_SLOT_KINDS.has(slot.kind) && slot.player?.discordId) {
+        ids.add(slot.player.discordId);
+      }
+    }
+  }
+  return [...ids];
+}
+
+async function assignRosterSquadLeaderRole(roster: RosterWithSlots) {
+  const roleId = roster.squadLeaderRoleId;
+  if (!roleId || roster.squadLeaderRoleAssignedAt) return;
+  const endsAt = roster.eventStartTime ? roster.eventStartTime.getTime() + 2 * 60 * 60 * 1000 : null;
+  if (endsAt && endsAt <= Date.now()) {
+    await prisma.roster.update({ where: { id: roster.id }, data: { squadLeaderRoleRemovedAt: new Date() } });
+    return;
+  }
+  const ids = squadLeaderDiscordIds(roster.data);
+  if (ids.length) {
+    const guild = await client.guilds.fetch(GUILD_ID);
+    await Promise.all(ids.map(async (discordId) => {
+      try {
+        const member = await guild.members.fetch(discordId);
+        await member.roles.add(roleId, `Roster ${roster.id} squad leadership`);
+      } catch (err) {
+        console.error(`[bot] squad leader role assignment failed for ${discordId}`, err);
+      }
+    }));
+  }
+  await prisma.roster.update({ where: { id: roster.id }, data: { squadLeaderRoleAssignedAt: new Date() } });
+}
+
+async function removeRosterSquadLeaderRole(roster: RosterWithSlots) {
+  if (!roster.squadLeaderRoleId || roster.squadLeaderRoleRemovedAt) return;
+  const guild = await client.guilds.fetch(GUILD_ID);
+  await Promise.all(squadLeaderDiscordIds(roster.data).map(async (discordId) => {
+    try {
+      const member = await guild.members.fetch(discordId);
+      await member.roles.remove(roster.squadLeaderRoleId!, `Roster ${roster.id} leadership period ended`);
+    } catch (err) {
+      console.error(`[bot] squad leader role removal failed for ${discordId}`, err);
+    }
+  }));
+  await prisma.roster.update({ where: { id: roster.id }, data: { squadLeaderRoleRemovedAt: new Date() } });
+}
+
+export async function cleanupExpiredRosterSquadLeaderRoles() {
+  const cutoff = new Date(Date.now() - 2 * 60 * 60 * 1000);
+  const rosters = await prisma.roster.findMany({
+    where: {
+      squadLeaderRoleId: { not: null },
+      squadLeaderRoleAssignedAt: { not: null },
+      squadLeaderRoleRemovedAt: null,
+      eventStartTime: { not: null, lte: cutoff },
+    },
+    include: { slots: true },
+  });
+  for (const roster of rosters) await removeRosterSquadLeaderRole(roster);
+}
+
+async function cleanupSquadLeaderRole(roleId: string) {
+  const guild = await client.guilds.fetch(GUILD_ID);
+  const members = await guild.members.fetch();
+  await Promise.all(members.filter((member) => member.roles.cache.has(roleId)).map(async (member) => {
+    try {
+      await member.roles.remove(roleId, 'Manual squad leader role cleanup');
+    } catch (err) {
+      console.error(`[bot] manual squad leader role cleanup failed for ${member.id}`, err);
+    }
+  }));
+  await prisma.roster.updateMany({
+    where: { squadLeaderRoleId: roleId, squadLeaderRoleAssignedAt: { not: null }, squadLeaderRoleRemovedAt: null },
+    data: { squadLeaderRoleRemovedAt: new Date() },
+  });
 }
 
 interface LayoutPlayer {
@@ -461,6 +556,7 @@ async function postRoster(rosterId: string) {
       where: { id: roster.id },
       data: { messageId: sent.id, channelId: resolved.channelId, status: 'posted' },
     });
+    await assignRosterSquadLeaderRole(roster);
     console.log(`[bot] posted roster ${roster.id} to channel ${resolved.channelId}`);
   } catch (err) {
     console.error(`[bot] postRoster failed for roster ${roster.id}`, err);

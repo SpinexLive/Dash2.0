@@ -40,6 +40,7 @@ class UpdateSettingsDto {
   @IsOptional() @IsObject() rosterEmojis?: JsonObject;
   @IsOptional() @IsString() recruitChannelId?: string;
   @IsOptional() @IsString() matchChannelId?: string;
+  @IsOptional() @IsString() squadLeaderRoleId?: string | null;
   @IsOptional() @IsString() briefingVoiceChannelId?: string | null;
   @IsOptional() @IsObject() briefingVoiceChannels?: BriefingVoiceChannelSettings;
   @IsOptional() @IsString() rconApiUrl?: string | null;
@@ -91,6 +92,7 @@ export class SettingsController {
       memberRoleIds: [],
       recruitChannelId: null,
       matchChannelId: null,
+      squadLeaderRoleId: null,
       briefingVoiceChannels: {},
       rankRoles: [],
       selectableRoles: [],

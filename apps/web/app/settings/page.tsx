@@ -42,6 +42,7 @@ interface Settings {
   adminRoleIds: string[];
   recruitChannelId: string | null;
   matchChannelId: string | null;
+  squadLeaderRoleId: string | null;
   briefingVoiceChannelId: string | null;
   briefingVoiceChannels: BriefingVoiceChannelSettings;
   rconApiUrl: string | null;
@@ -142,6 +143,7 @@ export default function SettingsPage() {
           adminRoleIds: normalizeRoleIds(s?.adminRoleIds),
           recruitChannelId: s?.recruitChannelId ?? null,
           matchChannelId: s?.matchChannelId ?? null,
+          squadLeaderRoleId: s?.squadLeaderRoleId ?? null,
           briefingVoiceChannelId: s?.briefingVoiceChannelId ?? null,
           briefingVoiceChannels: normalizeBriefingVoiceChannels(s?.briefingVoiceChannels),
           rconApiUrl: s?.rconApiUrl ?? 'http://45.151.81.182:8010/',
@@ -270,6 +272,7 @@ export default function SettingsPage() {
           adminRoleIds: settings.adminRoleIds,
           recruitChannelId: settings.recruitChannelId,
           matchChannelId: settings.matchChannelId,
+          squadLeaderRoleId: settings.squadLeaderRoleId,
           briefingVoiceChannelId: settings.briefingVoiceChannelId,
           briefingVoiceChannels: settings.briefingVoiceChannels,
           rconApiUrl: settings.rconApiUrl,
@@ -693,6 +696,16 @@ export default function SettingsPage() {
 
           <SettingsPanel title="Role Groups">
             <div className="grid gap-4">
+              <RoleSelect
+                title="Temporary Squad Leader Role"
+                roles={roles}
+                value={settings.squadLeaderRoleId ?? ''}
+                noRoles={noRoles}
+                onChange={(squadLeaderRoleId) => setSettings({ ...settings, squadLeaderRoleId: squadLeaderRoleId || null })}
+              />
+              <p className="-mt-2 text-xs text-zinc-500">
+                Optional role assigned to roster commanders, artillery, spotters, tank commanders, and squad leaders when enabled at first publish. It is removed two hours after the event starts.
+              </p>
               <RoleChecklist
                 title="Member Roles"
                 roles={roles}

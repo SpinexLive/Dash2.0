@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
-import { IsIn, IsObject, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsIn, IsObject, IsOptional, IsString } from 'class-validator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { AccessGuard } from '../common/guards/access.guard';
 import { RosterService } from './roster.service';
@@ -13,6 +13,9 @@ class SaveRosterBodyDto {
 }
 class RespondDto {
   @IsIn(['accepted', 'declined']) response!: 'accepted' | 'declined';
+}
+class PostRosterDto {
+  @IsOptional() @IsBoolean() assignSquadLeaderRole?: boolean;
 }
 
 @Controller('roster')
@@ -40,8 +43,8 @@ export class RosterController {
 
   /** Post the roster embed to Discord. */
   @Post('event/:eventId/post')
-  post(@Param('eventId') eventId: string) {
-    return this.roster.post(eventId);
+  post(@Param('eventId') eventId: string, @Body() dto: PostRosterDto) {
+    return this.roster.post(eventId, dto.assignSquadLeaderRole === true);
   }
 
   /** Update the already-posted Discord roster embed. */
@@ -54,6 +57,12 @@ export class RosterController {
   @Post('event/:eventId/remind-pending')
   remindPending(@Param('eventId') eventId: string) {
     return this.roster.remindPending(eventId);
+  }
+
+  /** Remove the configured temporary squad-leader role from every guild member. */
+  @Post('cleanup-squad-leader-role')
+  cleanupSquadLeaderRole() {
+    return this.roster.cleanupSquadLeaderRole();
   }
 
   /** Record a player's accept/decline from the dashboard. */
