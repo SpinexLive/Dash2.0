@@ -19,9 +19,13 @@ import Redis from 'ioredis';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { AccessGuard } from '../common/guards/access.guard';
 import { REDIS } from '../redis/redis.module';
+import { AdminOnly } from '../common/decorators/auth.decorators';
 
 const BOT_COMMAND_CHANNEL = 'bot:commands';
 const BOT_RESPONSE_CHANNEL = 'bot:responses';
+const RCON_API_URL_KEY = 'settings:rconApiUrl';
+const RCON_API_TOKEN_KEY = 'settings:rconApiToken';
+const ADMIN_CAMERA_ROLE = 'camera';
 type RoleOption = { id: string; name: string; position?: number; color?: string };
 type SteamBanPlayer = {
   SteamId: string;
@@ -32,6 +36,7 @@ type SteamBanPlayer = {
   NumberOfGameBans: number;
   EconomyBan: string;
 };
+type CrconAdmin = { playerId: string; role: string; name: string | null };
 
 /** Steam IDs are numeric; Epic IDs are 32-char hex strings. */
 function detectPlatform(id: string): 'steam' | 'epic' | null {
@@ -171,6 +176,13 @@ export class MembersController {
           : null,
       };
     });
+  }
+
+  /** Current HLL admin roles, used to mark the member directory. */
+  @Get('admin-cam')
+  async adminCamStatus() {
+    const admins = await this.crconAdmins();
+    return { admins };
   }
 
   @Get(':id')
@@ -380,6 +392,66 @@ export class MembersController {
     return { ok: true };
   }
 
+  /**
+   * Gives every active Steam-linked member the HLL "camera" admin role, or
+   * removes that role from those members when everyone already has access.
+   * Existing non-camera roles are deliberately never downgraded or deleted.
+   */
+  @Post('admin-cam/toggle')
+  @AdminOnly()
+  async toggleAdminCam() {
+    const members = await prisma.member.findMany({
+      where: { isMember: true },
+      include: { user: { include: { gameAccounts: true } } },
+    });
+    const eligible = members.flatMap((member) => {
+      const steam = member.user.gameAccounts.find(
+        (account) => account.platform === 'steam' && /^\d+$/.test(account.gameId),
+      );
+      return steam
+        ? [{ playerId: steam.gameId, name: member.user.serverNick ?? member.user.username }]
+        : [];
+    });
+    if (!eligible.length) {
+      throw new BadRequestException('No active members have a Steam ID to grant camera access to');
+    }
+
+    const admins = await this.crconAdmins();
+    const adminByPlayerId = new Map(admins.map((admin) => [admin.playerId, admin]));
+    const missingAccess = eligible.filter(({ playerId }) => !adminByPlayerId.has(playerId));
+
+    if (missingAccess.length) {
+      for (const member of missingAccess) {
+        await this.crconRequest('add_admin', {
+          player_id: member.playerId,
+          role: ADMIN_CAMERA_ROLE,
+          description: member.name,
+        });
+      }
+      return {
+        action: 'enabled',
+        added: missingAccess.length,
+        alreadyAdmin: eligible.length - missingAccess.length,
+        skipped: members.length - eligible.length,
+      };
+    }
+
+    // HLL's AdminDel removes every role for an ID. Only remove roles that this
+    // dashboard owns (the exact "camera" role), never senior/admin roles.
+    const cameraAdmins = eligible.filter(
+      ({ playerId }) => adminByPlayerId.get(playerId)?.role.toLowerCase() === ADMIN_CAMERA_ROLE,
+    );
+    for (const member of cameraAdmins) {
+      await this.crconRequest('remove_admin', { player_id: member.playerId });
+    }
+    return {
+      action: 'disabled',
+      removed: cameraAdmins.length,
+      retainedOtherAdminRoles: eligible.length - cameraAdmins.length,
+      skipped: members.length - eligible.length,
+    };
+  }
+
   /** Check VAC/game ban status for active Steam-primary members only. */
   @Post('vac-bans/check')
   async checkVacBans() {
@@ -504,6 +576,59 @@ export class MembersController {
     const raw = await this.redis.get('discord:roles');
     return raw ? JSON.parse(raw) : [];
   }
+
+  private async crconAdmins(): Promise<CrconAdmin[]> {
+    const data = await this.crconRequest<unknown>('get_admin_ids');
+    return extractCrconAdmins(data);
+  }
+
+  private async crconRequest<T = unknown>(action: string, body?: Record<string, string>) {
+    const [savedBase, savedToken] = await Promise.all([
+      this.redis.get(RCON_API_URL_KEY),
+      this.redis.get(RCON_API_TOKEN_KEY),
+    ]);
+    const base = savedBase ?? process.env.RCON_API_URL ?? process.env.CRCON_BASE_URL;
+    const token = savedToken ?? process.env.RCON_API_TOKEN ?? process.env.CRCON_API_KEY;
+    if (!base?.trim()) {
+      throw new BadRequestException('Set the RCON API URL in Settings first');
+    }
+
+    try {
+      const url = `${base.replace(/\/$/, '')}/api/${action}`;
+      const response = body
+        ? await axios.post<T>(url, body, { headers: { Authorization: `Bearer ${token ?? ''}` }, timeout: 15_000 })
+        : await axios.get<T>(url, { headers: { Authorization: `Bearer ${token ?? ''}` }, timeout: 15_000 });
+      return response.data;
+    } catch (error) {
+      const detail = axios.isAxiosError(error) && typeof error.response?.data === 'string'
+        ? `: ${error.response.data}`
+        : '';
+      throw new BadGatewayException(`Could not contact the configured RCON server${detail}`);
+    }
+  }
+}
+
+function extractCrconAdmins(data: unknown): CrconAdmin[] {
+  const unwrapped = data && typeof data === 'object'
+    ? (data as { result?: unknown; data?: unknown }).result ?? (data as { data?: unknown }).data ?? data
+    : data;
+  if (!Array.isArray(unwrapped)) return [];
+  return unwrapped.flatMap((entry): CrconAdmin[] => {
+    if (Array.isArray(entry)) {
+      const [playerId, role, name] = entry;
+      return typeof playerId === 'string' && typeof role === 'string'
+        ? [{ playerId, role, name: typeof name === 'string' ? name : null }]
+        : [];
+    }
+    if (!entry || typeof entry !== 'object') return [];
+    const value = entry as Record<string, unknown>;
+    const playerId = value.player_id ?? value.steam_id_64 ?? value.playerId;
+    const role = value.role ?? value.admin_role;
+    const name = value.name ?? value.description;
+    return typeof playerId === 'string' && typeof role === 'string'
+      ? [{ playerId, role, name: typeof name === 'string' ? name : null }]
+      : [];
+  });
 }
 
 function hydrateRoleOptions(saved: unknown, current: RoleOption[]) {

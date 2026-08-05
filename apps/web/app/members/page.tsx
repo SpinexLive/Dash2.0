@@ -10,6 +10,7 @@ import {
   WarningIcon,
   CheckCircleIcon,
   DownloadIcon,
+  EyeIcon,
 } from '../../components/icons';
 import { Avatar } from '../../components/Avatar';
 
@@ -46,6 +47,19 @@ interface VacBanResult {
 interface VacBanCheckResponse {
   checkedAt: string;
   results: VacBanResult[];
+}
+
+interface AdminCamStatusResponse {
+  admins: { playerId: string; role: string; name: string | null }[];
+}
+
+interface AdminCamToggleResponse {
+  action: 'enabled' | 'disabled';
+  added?: number;
+  removed?: number;
+  alreadyAdmin?: number;
+  retainedOtherAdminRoles?: number;
+  skipped: number;
 }
 
 type SortKey =
@@ -102,6 +116,9 @@ export default function MembersPage() {
   const [minKpm, setMinKpm] = useState(0);
   const [minKdr, setMinKdr] = useState(0);
   const [mounted, setMounted] = useState(false);
+  const [adminAccess, setAdminAccess] = useState<Record<string, string>>({});
+  const [adminCamLoading, setAdminCamLoading] = useState(false);
+  const [adminCamMessage, setAdminCamMessage] = useState<string | null>(null);
 
   useEffect(() => setMounted(true), []);
 
@@ -111,8 +128,21 @@ export default function MembersPage() {
     setLoading(false);
   }, []);
 
+  const loadAdminCamStatus = useCallback(async () => {
+    try {
+      const data = await api<AdminCamStatusResponse>('/members/admin-cam');
+      setAdminAccess(
+        Object.fromEntries(data.admins.map((admin) => [admin.playerId, admin.role])),
+      );
+      setAdminCamMessage(null);
+    } catch {
+      setAdminCamMessage('Admin camera status is unavailable. Check the RCON settings.');
+    }
+  }, []);
+
   useEffect(() => {
     load();
+    loadAdminCamStatus();
     // Auto-refresh when a recruit is accepted (member.created event).
     const socket = getSocket();
     const onCreated = () => load();
@@ -120,7 +150,31 @@ export default function MembersPage() {
     return () => {
       socket.off('member.created', onCreated);
     };
-  }, [load]);
+  }, [load, loadAdminCamStatus]);
+
+  async function toggleAdminCam() {
+    if (!confirm('This will enable admin camera access for every active member who does not already have an HLL admin role, or remove the camera role from active members when all already have access. Continue?')) {
+      return;
+    }
+    setAdminCamLoading(true);
+    setAdminCamMessage(null);
+    try {
+      const result = await api<AdminCamToggleResponse>('/members/admin-cam/toggle', {
+        method: 'POST',
+      });
+      const changed = result.action === 'enabled' ? result.added : result.removed;
+      setAdminCamMessage(
+        result.action === 'enabled'
+          ? `Admin camera enabled for ${changed ?? 0} member(s)${result.skipped ? `; ${result.skipped} without a Steam ID skipped` : ''}.`
+          : `Admin camera removed from ${changed ?? 0} member(s). Other HLL admin roles were kept.`,
+      );
+      await loadAdminCamStatus();
+    } catch (err) {
+      setAdminCamMessage(err instanceof Error ? err.message : 'Could not update admin camera access.');
+    } finally {
+      setAdminCamLoading(false);
+    }
+  }
 
   async function sync() {
     setSyncing(true);
@@ -370,6 +424,15 @@ export default function MembersPage() {
         description="Click a Game ID to edit it."
       >
         <button
+          onClick={toggleAdminCam}
+          disabled={adminCamLoading || loading}
+          className="btn btn-ghost"
+          title="Enable admin camera for all active members, or remove the camera role when it is already enabled"
+        >
+          <EyeIcon />
+          {adminCamLoading ? 'Updating...' : 'Enable / disable admin cam'}
+        </button>
+        <button
           onClick={checkVacBans}
           disabled={checkingVac}
           className="btn btn-ghost"
@@ -407,6 +470,15 @@ export default function MembersPage() {
         >
           {syncStatus === 'syncing' ? '⏳ ' : syncStatus === 'success' ? '✓ ' : '⚠ '}
           {syncMessage}
+        </div>
+      )}
+
+      {adminCamMessage && (
+        <div
+          className="mb-3 rounded-lg border border-brand/20 bg-brand/10 px-3 py-2 text-sm text-zinc-200"
+          aria-live="polite"
+        >
+          {adminCamMessage}
         </div>
       )}
 
@@ -536,12 +608,27 @@ export default function MembersPage() {
                             : null;
                         return (
                           <div className="min-w-0">
-                            <Link
-                              href={`/members/${m.id}`}
-                              className="block truncate font-medium text-zinc-100 transition-colors hover:text-brand-bright hover:underline"
-                            >
-                              {m.serverNick}
-                            </Link>
+                            <div className="flex items-center gap-1.5">
+                              <Link
+                                href={`/members/${m.id}`}
+                                className="block truncate font-medium text-zinc-100 transition-colors hover:text-brand-bright hover:underline"
+                              >
+                                {m.serverNick}
+                              </Link>
+                              {(() => {
+                                const steam = m.gameAccounts.find((account) => account.platform === 'steam');
+                                const role = steam ? adminAccess[steam.gameId] : null;
+                                return role ? (
+                                  <span
+                                    title={`HLL admin access: ${role}`}
+                                    className="inline-flex shrink-0 items-center gap-1 rounded bg-brand/15 px-1.5 py-0.5 text-[10px] font-medium text-brand-bright"
+                                  >
+                                    <EyeIcon width={12} height={12} />
+                                    {role}
+                                  </span>
+                                ) : null;
+                              })()}
+                            </div>
                             {steamId && (
                               <a
                                 href={`https://hllrecords.com/profiles/${steamId}?period=90d`}
