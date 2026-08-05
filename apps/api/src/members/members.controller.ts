@@ -25,7 +25,8 @@ const BOT_COMMAND_CHANNEL = 'bot:commands';
 const BOT_RESPONSE_CHANNEL = 'bot:responses';
 const RCON_API_URL_KEY = 'settings:rconApiUrl';
 const RCON_API_TOKEN_KEY = 'settings:rconApiToken';
-const ADMIN_CAMERA_ROLE = 'camera';
+// This is the configured HLL admin group that grants spectator/admin-camera access.
+const ADMIN_CAMERA_ROLE = 'Spectator';
 type RoleOption = { id: string; name: string; position?: number; color?: string };
 type SteamBanPlayer = {
   SteamId: string;
@@ -393,7 +394,7 @@ export class MembersController {
   }
 
   /**
-   * Gives every active Steam-linked member the HLL "camera" admin role, or
+   * Gives every active Steam-linked member the HLL "Spectator" admin role, or
    * removes that role from those members when everyone already has access.
    * Existing non-camera roles are deliberately never downgraded or deleted.
    */
@@ -437,9 +438,10 @@ export class MembersController {
     }
 
     // HLL's AdminDel removes every role for an ID. Only remove roles that this
-    // dashboard owns (the exact "camera" role), never senior/admin roles.
+    // dashboard owns (the exact "Spectator" role), never senior/admin roles.
     const cameraAdmins = eligible.filter(
-      ({ playerId }) => adminByPlayerId.get(playerId)?.role.toLowerCase() === ADMIN_CAMERA_ROLE,
+      ({ playerId }) =>
+        adminByPlayerId.get(playerId)?.role.toLowerCase() === ADMIN_CAMERA_ROLE.toLowerCase(),
     );
     for (const member of cameraAdmins) {
       await this.crconRequest('remove_admin', { player_id: member.playerId });
