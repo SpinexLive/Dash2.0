@@ -26,6 +26,21 @@ model Settings {
   @@map("settings")
 }
 
+/// Additional Discord servers whose member nicknames can be kept aligned with
+/// the primary dashboard directory. They do not participate in dashboard auth
+/// or roster workflows.
+model ConnectedServer {
+  guildId       String   @id
+  name          String
+  icon          String?
+  addedBy       String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  lastSyncedAt  DateTime?
+
+  @@map("connected_servers")
+}
+
 /// Discord identity. Primary key for everything else.
 model User {
   id           BigInt   @id @default(autoincrement())

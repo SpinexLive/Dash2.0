@@ -10,6 +10,7 @@ const nextConfig = {
       // Proxy it to the API's OAuth callback handler so everything stays on :3000.
       { source: '/auth/:path*', destination: `${API_ORIGIN}/auth/:path*` },
       { source: '/callback', destination: `${API_ORIGIN}/auth/discord/callback` },
+      { source: '/connected-servers/callback', destination: `${API_ORIGIN}/connected-servers/callback` },
     ];
   },
 };

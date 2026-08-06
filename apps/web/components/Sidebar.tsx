@@ -10,6 +10,7 @@ import {
   SwordsIcon,
   RadioIcon,
   CogIcon,
+  LinkIcon,
   LogoutIcon,
 } from './icons';
 
@@ -20,6 +21,7 @@ const nav = [
   { href: '/matches', label: 'Matches', Icon: SwordsIcon },
   { href: '/briefing', label: 'Briefing', Icon: RadioIcon },
   { href: '/settings', label: 'Settings', Icon: CogIcon },
+  { href: '/connected-servers', label: 'Connected Servers', Icon: LinkIcon },
 ];
 
 export function Sidebar() {

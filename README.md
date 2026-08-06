@@ -57,6 +57,12 @@ nginx/     Reverse proxy config
    privileged intents. Invite the bot with `bot` + `applications.commands` scopes
    and Manage Roles permission.
 4. Put the client id/secret, bot token, and guild id into `.env`.
+5. To use **Connected Servers**, register
+   `https://your-dashboard.example/connected-servers/callback` as an additional
+   OAuth2 redirect URI in the Discord Developer Portal, and set the same value
+   as `DISCORD_BOT_INSTALL_REDIRECT`. The install flow requests only **Manage
+   Nicknames** for each additional server. Place the bot role above every role
+   whose members should have their nickname synchronised.
 
 ## How the key workflows fit together
 

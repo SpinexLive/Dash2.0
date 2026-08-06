@@ -42,6 +42,12 @@ interface SyncMembersCommand {
   type: 'syncMembers';
   requestId?: string;
 }
+interface SyncConnectedServerNicknamesCommand {
+  type: 'syncConnectedServerNicknames';
+  requestId: string;
+  guildId: string;
+  targets: { discordId: string; nickname: string }[];
+}
 const BOT_RESPONSE_CHANNEL = 'bot:responses';
 
 interface PollRecruitsCommand {
@@ -70,6 +76,7 @@ type BotCommand =
   | RemindPendingCommand
   | CleanupSquadLeaderRoleCommand
   | SyncMembersCommand
+  | SyncConnectedServerNicknamesCommand
   | PollRecruitsCommand
   | ShareMatchCommand
   | ScrapeHllRecordsCommand
@@ -118,6 +125,8 @@ export async function handleBotCommand(raw: string) {
         }),
       );
     }
+  } else if (cmd.type === 'syncConnectedServerNicknames') {
+    await syncConnectedServerNicknames(cmd);
   } else if (cmd.type === 'pollRecruits') {
     await pollRecruits();
     if (cmd.requestId) {
@@ -133,6 +142,58 @@ export async function handleBotCommand(raw: string) {
   } else if (cmd.type === 'createBriefingVoiceChannels') {
     await createBriefingVoiceChannels(cmd);
   }
+}
+
+/**
+ * Copies primary-dashboard names to members with the same Discord identity in
+ * a connected server. The connected server is intentionally not used by any
+ * other dashboard workflow.
+ */
+async function syncConnectedServerNicknames(cmd: SyncConnectedServerNicknamesCommand) {
+  let updated = 0;
+  let unchanged = 0;
+  let missing = 0;
+  let failed = 0;
+  let error: string | undefined;
+  try {
+    const guild = await client.guilds.fetch(cmd.guildId);
+    const members = await guild.members.fetch();
+    for (const target of cmd.targets) {
+      const member = members.get(target.discordId);
+      if (!member) {
+        missing += 1;
+        continue;
+      }
+      const nickname = target.nickname.trim().slice(0, 32);
+      if (!nickname || member.nickname === nickname) {
+        unchanged += 1;
+        continue;
+      }
+      try {
+        await member.setNickname(nickname, 'Synced from primary clan dashboard');
+        updated += 1;
+      } catch (err) {
+        failed += 1;
+        console.error(`[bot] nickname sync failed for ${target.discordId} in ${cmd.guildId}`, err);
+      }
+    }
+  } catch (err) {
+    error = err instanceof Error ? err.message : String(err);
+    console.error(`[bot] connected-server nickname sync failed for ${cmd.guildId}`, err);
+  }
+  await redis.publish(
+    BOT_RESPONSE_CHANNEL,
+    JSON.stringify({
+      type: 'connectedServerNicknameSyncComplete',
+      requestId: cmd.requestId,
+      ok: !error,
+      updated,
+      unchanged,
+      missing,
+      failed,
+      ...(error ? { error } : {}),
+    }),
+  );
 }
 
 async function createBriefingVoiceChannels(cmd: CreateBriefingVoiceChannelsCommand) {

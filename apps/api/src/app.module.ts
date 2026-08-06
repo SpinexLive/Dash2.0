@@ -12,6 +12,7 @@ import { RosterModule } from './roster/roster.module';
 import { RaidHelperModule } from './raidhelper/raidhelper.module';
 import { BriefingModule } from './briefing/briefing.module';
 import { RealtimeModule } from './realtime/realtime.module';
+import { ConnectedServersModule } from './connected-servers/connected-servers.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { RealtimeModule } from './realtime/realtime.module';
     RosterModule,
     RaidHelperModule,
     BriefingModule,
+    ConnectedServersModule,
   ],
 })
 export class AppModule {}
