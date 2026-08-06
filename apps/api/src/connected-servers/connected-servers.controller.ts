@@ -8,9 +8,11 @@ import {
   Param,
   Post,
   Query,
+  Body,
   Res,
   UseGuards,
 } from '@nestjs/common';
+import { IsOptional, IsString } from 'class-validator';
 import { randomBytes } from 'crypto';
 import axios from 'axios';
 import type { Response } from 'express';
@@ -36,10 +38,17 @@ type NicknameSyncResult = {
   ok?: boolean;
   updated?: number;
   unchanged?: number;
-  missing?: number;
+  missing?: number | unknown[];
   failed?: number;
   error?: string;
+  assigned?: number;
 };
+class UpdateRoleMappingDto {
+  @IsOptional() @IsString() infantryLeaderRoleId?: string | null;
+  @IsOptional() @IsString() tankCommanderRoleId?: string | null;
+}
+type DiscordRole = { id: string; name: string; position: number; managed: boolean };
+type RosterTarget = { discordId: string; name: string; position: string; role: 'infantry' | 'tank' };
 
 @Controller('connected-servers')
 @UseGuards(JwtAuthGuard, AccessGuard)
@@ -49,6 +58,60 @@ export class ConnectedServersController {
   @Get()
   async list() {
     return prisma.connectedServer.findMany({ orderBy: { createdAt: 'desc' } });
+  }
+
+  @Get(':guildId/roles')
+  async roles(@Param('guildId') guildId: string) {
+    await this.ensureServer(guildId);
+    try {
+      const { data } = await axios.get<DiscordRole[]>(`https://discord.com/api/v10/guilds/${guildId}/roles`, {
+        headers: { Authorization: `Bot ${process.env.DISCORD_BOT_TOKEN}` },
+      });
+      return data.filter((role) => role.name !== '@everyone' && !role.managed)
+        .map(({ id, name, position }) => ({ id, name, position })).sort((a, b) => b.position - a.position);
+    } catch { throw new BadRequestException('Could not load roles from this connected server.'); }
+  }
+
+  @Post(':guildId/role-mapping')
+  @AdminOnly()
+  async updateRoleMapping(@Param('guildId') guildId: string, @Body() dto: UpdateRoleMappingDto) {
+    return prisma.connectedServer.update({
+      where: { guildId },
+      data: {
+        infantryLeaderRoleId: dto.infantryLeaderRoleId?.trim() || null,
+        tankCommanderRoleId: dto.tankCommanderRoleId?.trim() || null,
+      },
+    }).catch(() => { throw new NotFoundException('Connected server not found'); });
+  }
+
+  @Get(':guildId/rosters')
+  async rosters(@Param('guildId') guildId: string) {
+    await this.ensureServer(guildId);
+    const rows = await prisma.roster.findMany({
+      select: { id: true, name: true, eventTitle: true, eventStartTime: true, slots: { select: { discordId: true, username: true, position: true } } },
+      orderBy: { eventStartTime: 'desc' }, take: 50,
+    });
+    return rows.map((row) => ({ id: row.id.toString(), name: row.eventTitle ?? row.name ?? `Roster ${row.id}`, eventStartTime: row.eventStartTime, eligible: this.roleTargets(row.slots).length }));
+  }
+
+  @Post(':guildId/rosters/:rosterId/assign-roles')
+  @AdminOnly()
+  async assignRosterRoles(@Param('guildId') guildId: string, @Param('rosterId') rosterId: string) {
+    const server = await this.ensureServer(guildId);
+    if (!server.infantryLeaderRoleId && !server.tankCommanderRoleId) throw new BadRequestException('Select at least one connected-server role first.');
+    const roster = await prisma.roster.findUnique({ where: { id: BigInt(rosterId) }, include: { slots: true } });
+    if (!roster) throw new NotFoundException('Roster not found');
+    const targets = this.roleTargets(roster.slots).filter((target) =>
+      target.role === 'infantry' ? Boolean(server.infantryLeaderRoleId) : Boolean(server.tankCommanderRoleId),
+    );
+    if (!targets.length) throw new BadRequestException('This roster has no commander, artillery, spotter, squad leader, or tank commander assignments.');
+    const requestId = `${Date.now()}-${randomBytes(4).toString('hex')}`;
+    const result = await this.awaitBotResponse(requestId, {
+      type: 'assignConnectedServerRosterRoles', requestId, guildId,
+      infantryRoleId: server.infantryLeaderRoleId, tankRoleId: server.tankCommanderRoleId, targets,
+    });
+    if (!result.ok) throw new BadGatewayException(result.error ?? 'Role assignment failed');
+    return { ok: true, rosterId, ...result };
   }
 
   /** Start Discord's admin-approved bot install flow. */
@@ -142,6 +205,22 @@ export class ConnectedServersController {
     }
   }
 
+  private async ensureServer(guildId: string) {
+    const server = await prisma.connectedServer.findUnique({ where: { guildId } });
+    if (!server) throw new NotFoundException('Connected server not found');
+    return server;
+  }
+
+  private roleTargets(slots: { discordId: string | null; username: string | null; position: string | null }[]): RosterTarget[] {
+    return slots.flatMap((slot) => {
+      if (!slot.discordId || !slot.position) return [];
+      const label = slot.position.toLowerCase();
+      const role = label.includes('tank commander') ? 'tank'
+        : /commander|artillery|spotter|squad leader|squad lead/.test(label) ? 'infantry' : null;
+      return role ? [{ discordId: slot.discordId, name: slot.username ?? slot.discordId, position: slot.position, role }] : [];
+    });
+  }
+
   private async awaitBotResponse(requestId: string, command: object): Promise<NicknameSyncResult> {
     const subscriber = new Redis(process.env.REDIS_URL ?? 'redis://localhost:6379');
     return new Promise<NicknameSyncResult>((resolve, reject) => {
@@ -150,7 +229,7 @@ export class ConnectedServersController {
         if (channel !== BOT_RESPONSE_CHANNEL) return;
         try {
           const payload = JSON.parse(message) as NicknameSyncResult;
-          if (payload.type === 'connectedServerNicknameSyncComplete' && payload.requestId === requestId) {
+          if ((payload.type === 'connectedServerNicknameSyncComplete' || payload.type === 'connectedServerRosterRoleAssignmentComplete') && payload.requestId === requestId) {
             done(() => resolve(payload));
           }
         } catch { /* Ignore malformed messages. */ }

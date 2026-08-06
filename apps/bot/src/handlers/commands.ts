@@ -48,6 +48,11 @@ interface SyncConnectedServerNicknamesCommand {
   guildId: string;
   targets: { discordId: string; nickname: string }[];
 }
+interface AssignConnectedServerRosterRolesCommand {
+  type: 'assignConnectedServerRosterRoles'; requestId: string; guildId: string;
+  infantryRoleId?: string | null; tankRoleId?: string | null;
+  targets: { discordId: string; name: string; position: string; role: 'infantry' | 'tank' }[];
+}
 const BOT_RESPONSE_CHANNEL = 'bot:responses';
 
 interface PollRecruitsCommand {
@@ -77,6 +82,7 @@ type BotCommand =
   | CleanupSquadLeaderRoleCommand
   | SyncMembersCommand
   | SyncConnectedServerNicknamesCommand
+  | AssignConnectedServerRosterRolesCommand
   | PollRecruitsCommand
   | ShareMatchCommand
   | ScrapeHllRecordsCommand
@@ -127,6 +133,8 @@ export async function handleBotCommand(raw: string) {
     }
   } else if (cmd.type === 'syncConnectedServerNicknames') {
     await syncConnectedServerNicknames(cmd);
+  } else if (cmd.type === 'assignConnectedServerRosterRoles') {
+    await assignConnectedServerRosterRoles(cmd);
   } else if (cmd.type === 'pollRecruits') {
     await pollRecruits();
     if (cmd.requestId) {
@@ -142,6 +150,28 @@ export async function handleBotCommand(raw: string) {
   } else if (cmd.type === 'createBriefingVoiceChannels') {
     await createBriefingVoiceChannels(cmd);
   }
+}
+
+async function assignConnectedServerRosterRoles(cmd: AssignConnectedServerRosterRolesCommand) {
+  let assigned = 0; let unchanged = 0; let failed = 0; let error: string | undefined;
+  const missing: { discordId: string; name: string; position: string; role: string }[] = [];
+  try {
+    const guild = await client.guilds.fetch(cmd.guildId);
+    const members = await guild.members.fetch();
+    for (const target of cmd.targets) {
+      const member = members.get(target.discordId);
+      if (!member) { missing.push(target); continue; }
+      const roleId = target.role === 'infantry' ? cmd.infantryRoleId : cmd.tankRoleId;
+      if (!roleId) continue;
+      if (member.roles.cache.has(roleId)) { unchanged += 1; continue; }
+      try { await member.roles.add(roleId, `Roster role assignment: ${target.position}`); assigned += 1; }
+      catch (err) { failed += 1; console.error(`[bot] connected roster role assignment failed for ${target.discordId}`, err); }
+    }
+  } catch (err) { error = err instanceof Error ? err.message : String(err); }
+  await redis.publish(BOT_RESPONSE_CHANNEL, JSON.stringify({
+    type: 'connectedServerRosterRoleAssignmentComplete', requestId: cmd.requestId, ok: !error,
+    assigned, unchanged, failed, missing, ...(error ? { error } : {}),
+  }));
 }
 
 /**
