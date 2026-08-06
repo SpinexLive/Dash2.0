@@ -114,6 +114,21 @@ export class ConnectedServersController {
     return { ok: true, rosterId, ...result };
   }
 
+  @Post(':guildId/rosters/:rosterId/check-members')
+  @AdminOnly()
+  async checkRosterMembers(@Param('guildId') guildId: string, @Param('rosterId') rosterId: string) {
+    await this.ensureServer(guildId);
+    const roster = await prisma.roster.findUnique({ where: { id: BigInt(rosterId) }, include: { slots: true } });
+    if (!roster) throw new NotFoundException('Roster not found');
+    const targets = roster.slots.flatMap((slot) => slot.discordId
+      ? [{ discordId: slot.discordId, name: slot.username ?? slot.discordId, position: slot.position ?? 'Roster slot' }]
+      : []);
+    const requestId = `${Date.now()}-${randomBytes(4).toString('hex')}`;
+    const result = await this.awaitBotResponse(requestId, { type: 'checkConnectedServerRosterMembers', requestId, guildId, targets });
+    if (!result.ok) throw new BadGatewayException(result.error ?? 'Roster membership check failed');
+    return { ok: true, checked: targets.length, ...result };
+  }
+
   /** Start Discord's admin-approved bot install flow. */
   @Get('install')
   @AdminOnly()
@@ -229,7 +244,7 @@ export class ConnectedServersController {
         if (channel !== BOT_RESPONSE_CHANNEL) return;
         try {
           const payload = JSON.parse(message) as NicknameSyncResult;
-          if ((payload.type === 'connectedServerNicknameSyncComplete' || payload.type === 'connectedServerRosterRoleAssignmentComplete') && payload.requestId === requestId) {
+          if ((payload.type === 'connectedServerNicknameSyncComplete' || payload.type === 'connectedServerRosterRoleAssignmentComplete' || payload.type === 'connectedServerRosterMemberCheckComplete') && payload.requestId === requestId) {
             done(() => resolve(payload));
           }
         } catch { /* Ignore malformed messages. */ }

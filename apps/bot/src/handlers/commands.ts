@@ -53,6 +53,10 @@ interface AssignConnectedServerRosterRolesCommand {
   infantryRoleId?: string | null; tankRoleId?: string | null;
   targets: { discordId: string; name: string; position: string; role: 'infantry' | 'tank' }[];
 }
+interface CheckConnectedServerRosterMembersCommand {
+  type: 'checkConnectedServerRosterMembers'; requestId: string; guildId: string;
+  targets: { discordId: string; name: string; position: string }[];
+}
 const BOT_RESPONSE_CHANNEL = 'bot:responses';
 
 interface PollRecruitsCommand {
@@ -83,6 +87,7 @@ type BotCommand =
   | SyncMembersCommand
   | SyncConnectedServerNicknamesCommand
   | AssignConnectedServerRosterRolesCommand
+  | CheckConnectedServerRosterMembersCommand
   | PollRecruitsCommand
   | ShareMatchCommand
   | ScrapeHllRecordsCommand
@@ -135,6 +140,8 @@ export async function handleBotCommand(raw: string) {
     await syncConnectedServerNicknames(cmd);
   } else if (cmd.type === 'assignConnectedServerRosterRoles') {
     await assignConnectedServerRosterRoles(cmd);
+  } else if (cmd.type === 'checkConnectedServerRosterMembers') {
+    await checkConnectedServerRosterMembers(cmd);
   } else if (cmd.type === 'pollRecruits') {
     await pollRecruits();
     if (cmd.requestId) {
@@ -150,6 +157,25 @@ export async function handleBotCommand(raw: string) {
   } else if (cmd.type === 'createBriefingVoiceChannels') {
     await createBriefingVoiceChannels(cmd);
   }
+}
+
+async function checkConnectedServerRosterMembers(cmd: CheckConnectedServerRosterMembersCommand) {
+  const missing: { discordId: string; name: string; position: string }[] = [];
+  let failed = 0; let error: string | undefined;
+  try {
+    const guild = await client.guilds.fetch(cmd.guildId);
+    for (const target of cmd.targets) {
+      try { await guild.members.fetch({ user: target.discordId, force: true }); }
+      catch (err) {
+        if ((err as { code?: number }).code === 10007) missing.push(target);
+        else { failed += 1; console.error(`[bot] roster membership check failed for ${target.discordId}`, err); }
+      }
+    }
+  } catch (err) { error = err instanceof Error ? err.message : String(err); }
+  await redis.publish(BOT_RESPONSE_CHANNEL, JSON.stringify({
+    type: 'connectedServerRosterMemberCheckComplete', requestId: cmd.requestId, ok: !error,
+    checked: cmd.targets.length, present: cmd.targets.length - missing.length - failed, missing, failed, ...(error ? { error } : {}),
+  }));
 }
 
 async function assignConnectedServerRosterRoles(cmd: AssignConnectedServerRosterRolesCommand) {

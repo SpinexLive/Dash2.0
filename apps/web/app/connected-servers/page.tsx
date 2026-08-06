@@ -81,11 +81,21 @@ export default function ConnectedServersPage() {
         {loading ? <p className="px-6 py-8 text-sm text-zinc-500">Loading servers…</p> : servers.length === 0 ? <p className="px-6 py-8 text-sm text-zinc-500">No additional servers connected yet.</p> : (
           <div className="divide-y divide-white/10">
             {servers.map((server) => <ConnectedServerCard key={server.guildId} server={server} expanded={selected === server.guildId} onToggle={() => setSelected(selected === server.guildId ? null : server.guildId)} onSync={() => void sync(server)} onRemove={() => void remove(server)} running={running !== null} />)}
+            {servers.map((server) => <RosterMemberCheck key={`${server.guildId}-check`} server={server} />)}
           </div>
         )}
       </section>
     </div>
   );
+}
+
+function RosterMemberCheck({ server }: { server: ConnectedServer }) {
+  const [rosters, setRosters] = useState<Roster[]>([]); const [rosterId, setRosterId] = useState('');
+  const [busy, setBusy] = useState(false); const [summary, setSummary] = useState<string | null>(null);
+  const [missing, setMissing] = useState<{ name: string; position: string }[]>([]);
+  useEffect(() => { void api<Roster[]>(`/connected-servers/${server.guildId}/rosters`).then(setRosters).catch(() => {}); }, [server.guildId]);
+  const check = async () => { if (!rosterId) return; setBusy(true); setSummary(null); setMissing([]); try { const result = await api<{ checked: number; present: number; failed: number; missing: { name: string; position: string }[] }>(`/connected-servers/${server.guildId}/rosters/${rosterId}/check-members`, { method: 'POST' }); setSummary(`${result.present} of ${result.checked} rostered players are in this server. ${result.failed} lookups failed.`); setMissing(result.missing); } catch (err) { setSummary(err instanceof Error ? err.message : 'Roster check failed.'); } finally { setBusy(false); } };
+  return <div className="border-t border-white/10 bg-zinc-950/30 px-6 py-5"><p className="text-sm font-semibold text-zinc-100">Roster membership check — {server.name}</p><p className="mt-1 text-xs text-zinc-500">Check every rostered player before assigning roles.</p><div className="mt-3 grid gap-2 md:grid-cols-[1fr_auto]"><select value={rosterId} onChange={(e) => setRosterId(e.target.value)} className="rounded-lg border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-zinc-100"><option value="">Choose a roster…</option>{rosters.map((roster) => <option key={roster.id} value={roster.id}>{roster.name}</option>)}</select><button onClick={() => void check()} disabled={!rosterId || busy} className="rounded-lg border border-brand/50 px-3 py-2 text-sm font-semibold text-brand-bright disabled:opacity-50">{busy ? 'Checking…' : 'Check roster members'}</button></div>{summary && <p className="mt-3 text-sm text-zinc-300">{summary}</p>}{missing.length > 0 && <div className="mt-3 max-h-72 overflow-y-auto rounded-lg border border-amber-500/30 bg-amber-500/10"><table className="w-full text-left text-sm"><thead className="sticky top-0 bg-amber-950 text-amber-200"><tr><th className="px-3 py-2">Missing player</th><th className="px-3 py-2">Roster position</th></tr></thead><tbody className="divide-y divide-amber-500/15 text-amber-50">{missing.map((member, index) => <tr key={`${member.name}-${index}`}><td className="px-3 py-2">{member.name}</td><td className="px-3 py-2">{member.position}</td></tr>)}</tbody></table></div>}</div>;
 }
 
 function ConnectedServerCard({ server, expanded, onToggle, onSync, onRemove, running }: { server: ConnectedServer; expanded: boolean; onToggle: () => void; onSync: () => void; onRemove: () => void; running: boolean }) {
