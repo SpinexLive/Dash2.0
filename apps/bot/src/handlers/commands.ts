@@ -157,10 +157,17 @@ async function assignConnectedServerRosterRoles(cmd: AssignConnectedServerRoster
   const missing: { discordId: string; name: string; position: string; role: string }[] = [];
   try {
     const guild = await client.guilds.fetch(cmd.guildId);
-    const members = await guild.members.fetch();
     for (const target of cmd.targets) {
-      const member = members.get(target.discordId);
-      if (!member) { missing.push(target); continue; }
+      // Fetch only this member via Discord's REST API. A full member fetch uses
+      // Gateway opcode 8 and is aggressively rate-limited on connected servers.
+      let member;
+      try { member = await guild.members.fetch({ user: target.discordId, force: true }); }
+      catch (err) {
+        if ((err as { code?: number }).code === 10007) { missing.push(target); continue; }
+        failed += 1;
+        console.error(`[bot] connected roster member lookup failed for ${target.discordId}`, err);
+        continue;
+      }
       const roleId = target.role === 'infantry' ? cmd.infantryRoleId : cmd.tankRoleId;
       if (!roleId) continue;
       if (member.roles.cache.has(roleId)) { unchanged += 1; continue; }
@@ -187,11 +194,20 @@ async function syncConnectedServerNicknames(cmd: SyncConnectedServerNicknamesCom
   let error: string | undefined;
   try {
     const guild = await client.guilds.fetch(cmd.guildId);
-    const members = await guild.members.fetch();
     for (const target of cmd.targets) {
-      const member = members.get(target.discordId);
-      if (!member) {
-        missing += 1;
+      // Do not request the full guild member list (Gateway opcode 8).
+      let member;
+      try {
+        // `force` ensures a current REST lookup, not a potentially stale cache
+        // entry; it never sends the gateway-wide opcode 8 request.
+        member = await guild.members.fetch({ user: target.discordId, force: true });
+      } catch (err) {
+        if ((err as { code?: number }).code === 10007) {
+          missing += 1;
+        } else {
+          failed += 1;
+          console.error(`[bot] nickname sync member lookup failed for ${target.discordId} in ${cmd.guildId}`, err);
+        }
         continue;
       }
       const nickname = target.nickname.trim().slice(0, 32);
