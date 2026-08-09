@@ -704,7 +704,7 @@ export default function SettingsPage() {
                 onChange={(squadLeaderRoleId) => setSettings({ ...settings, squadLeaderRoleId: squadLeaderRoleId || null })}
               />
               <p className="-mt-2 text-xs text-zinc-500">
-                Optional role assigned to roster commanders, artillery, spotters, tank commanders, and squad leaders when enabled at first publish. It is removed two hours after the event starts.
+                Optional role assigned to roster commanders, artillery, spotters, tank commanders, and squad leaders when enabled at first publish. Remove it later with the manual cleanup button on a roster page.
               </p>
               <RoleChecklist
                 title="Member Roles"

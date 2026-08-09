@@ -9,7 +9,7 @@ import { syncAllRoles } from './jobs/role-sync.job';
 import { syncVoicePresence } from './jobs/presence-sync.job';
 import { syncGuildMeta } from './jobs/guild-meta.job';
 import { scrapeHllRecords } from './jobs/hllrecords-scrape.job';
-import { cleanupExpiredRosterSquadLeaderRoles, handleBotCommand } from './handlers/commands';
+import { handleBotCommand } from './handlers/commands';
 import { registerInteractionHandler } from './handlers/interactions';
 import { registerGatewayHandlers } from './handlers/gateway';
 
@@ -37,10 +37,6 @@ async function main() {
     cron.schedule('0 * * * *', () => {
       syncAllRoles().catch((e) => console.error('[bot] role sync', e));
       syncGuildMeta().catch((e) => console.error('[bot] guild meta', e));
-    });
-    // Persistent safety net for temporary roster leadership roles.
-    cron.schedule('* * * * *', () => {
-      cleanupExpiredRosterSquadLeaderRoles().catch((e) => console.error('[bot] squad leader role cleanup', e));
     });
     setInterval(() => {
       syncVoicePresence().catch((e) => console.error('[bot] voice sync', e));

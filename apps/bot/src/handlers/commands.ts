@@ -352,11 +352,6 @@ function squadLeaderDiscordIds(data: unknown) {
 async function assignRosterSquadLeaderRole(roster: RosterWithSlots) {
   const roleId = roster.squadLeaderRoleId;
   if (!roleId || roster.squadLeaderRoleAssignedAt) return;
-  const endsAt = roster.eventStartTime ? roster.eventStartTime.getTime() + 2 * 60 * 60 * 1000 : null;
-  if (endsAt && endsAt <= Date.now()) {
-    await prisma.roster.update({ where: { id: roster.id }, data: { squadLeaderRoleRemovedAt: new Date() } });
-    return;
-  }
   const ids = squadLeaderDiscordIds(roster.data);
   if (ids.length) {
     const guild = await client.guilds.fetch(GUILD_ID);
@@ -370,34 +365,6 @@ async function assignRosterSquadLeaderRole(roster: RosterWithSlots) {
     }));
   }
   await prisma.roster.update({ where: { id: roster.id }, data: { squadLeaderRoleAssignedAt: new Date() } });
-}
-
-async function removeRosterSquadLeaderRole(roster: RosterWithSlots) {
-  if (!roster.squadLeaderRoleId || roster.squadLeaderRoleRemovedAt) return;
-  const guild = await client.guilds.fetch(GUILD_ID);
-  await Promise.all(squadLeaderDiscordIds(roster.data).map(async (discordId) => {
-    try {
-      const member = await guild.members.fetch(discordId);
-      await member.roles.remove(roster.squadLeaderRoleId!, `Roster ${roster.id} leadership period ended`);
-    } catch (err) {
-      console.error(`[bot] squad leader role removal failed for ${discordId}`, err);
-    }
-  }));
-  await prisma.roster.update({ where: { id: roster.id }, data: { squadLeaderRoleRemovedAt: new Date() } });
-}
-
-export async function cleanupExpiredRosterSquadLeaderRoles() {
-  const cutoff = new Date(Date.now() - 2 * 60 * 60 * 1000);
-  const rosters = await prisma.roster.findMany({
-    where: {
-      squadLeaderRoleId: { not: null },
-      squadLeaderRoleAssignedAt: { not: null },
-      squadLeaderRoleRemovedAt: null,
-      eventStartTime: { not: null, lte: cutoff },
-    },
-    include: { slots: true },
-  });
-  for (const roster of rosters) await removeRosterSquadLeaderRole(roster);
 }
 
 async function cleanupSquadLeaderRole(roleId: string) {

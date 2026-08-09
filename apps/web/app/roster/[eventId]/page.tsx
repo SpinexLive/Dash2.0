@@ -1058,7 +1058,7 @@ export default function RosterBuilderPage() {
               />
               <span>
                 Assign the Squad Leader role now
-                <span className="mt-1 block text-xs text-zinc-500">It will be removed two hours after this event starts.</span>
+                <span className="mt-1 block text-xs text-zinc-500">It remains assigned until you use the manual cleanup button.</span>
               </span>
             </label>
             <div className="mt-5 flex justify-end gap-2">
