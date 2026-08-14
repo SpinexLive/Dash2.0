@@ -173,6 +173,24 @@ export class RosterService {
     return { ok: true };
   }
 
+  async assignSquadLeaderRole(eventId: string) {
+    const roster = await prisma.roster.findUnique({ where: { raidhelperEventId: eventId } });
+    if (!roster) return { ok: false };
+    const settings = await prisma.settings.findUnique({ where: { id: 1 }, select: { squadLeaderRoleId: true } });
+    const roleId = settings?.squadLeaderRoleId?.trim();
+    if (!roleId) throw new BadRequestException('Configure a Squad Leader role in Settings before assigning it.');
+    await prisma.roster.update({
+      where: { id: roster.id },
+      data: {
+        squadLeaderRoleId: roleId,
+        squadLeaderRoleAssignedAt: null,
+        squadLeaderRoleRemovedAt: null,
+      },
+    });
+    await this.publish({ type: 'assignRosterSquadLeaderRole', rosterId: roster.id.toString() });
+    return { ok: true };
+  }
+
   /** Ask the bot to edit the already-posted roster embed. */
   async updateDiscord(eventId: string) {
     const roster = await prisma.roster.findUnique({ where: { raidhelperEventId: eventId } });

@@ -47,6 +47,12 @@ export class RosterController {
     return this.roster.post(eventId, dto.assignSquadLeaderRole === true);
   }
 
+  /** Assign the configured Squad Leader role to leadership positions in this saved roster. */
+  @Post('event/:eventId/assign-squad-leader-role')
+  assignSquadLeaderRole(@Param('eventId') eventId: string) {
+    return this.roster.assignSquadLeaderRole(eventId);
+  }
+
   /** Update the already-posted Discord roster embed. */
   @Post('event/:eventId/update-discord')
   updateDiscord(@Param('eventId') eventId: string) {

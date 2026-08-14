@@ -38,6 +38,10 @@ interface CleanupSquadLeaderRoleCommand {
   type: 'cleanupSquadLeaderRole';
   roleId: string;
 }
+interface AssignRosterSquadLeaderRoleCommand {
+  type: 'assignRosterSquadLeaderRole';
+  rosterId: string;
+}
 interface SyncMembersCommand {
   type: 'syncMembers';
   requestId?: string;
@@ -84,6 +88,7 @@ type BotCommand =
   | UpdateRosterCommand
   | RemindPendingCommand
   | CleanupSquadLeaderRoleCommand
+  | AssignRosterSquadLeaderRoleCommand
   | SyncMembersCommand
   | SyncConnectedServerNicknamesCommand
   | AssignConnectedServerRosterRolesCommand
@@ -116,6 +121,14 @@ export async function handleBotCommand(raw: string) {
     await remindPending(cmd.rosterId);
   } else if (cmd.type === 'cleanupSquadLeaderRole') {
     await cleanupSquadLeaderRole(cmd.roleId);
+  } else if (cmd.type === 'assignRosterSquadLeaderRole') {
+    console.log(`[bot] manual Squad Leader role assignment requested for roster ${cmd.rosterId}`);
+    const roster = await loadRoster(cmd.rosterId);
+    if (!roster) {
+      console.error(`[bot] manual Squad Leader role assignment failed: roster ${cmd.rosterId} not found`);
+      return;
+    }
+    await assignRosterSquadLeaderRole(roster);
   } else if (cmd.type === 'syncMembers') {
     try {
       await syncAllRoles();

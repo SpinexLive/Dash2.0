@@ -918,6 +918,11 @@ export default function RosterBuilderPage() {
     }
   };
 
+  const assignSquadLeaderRoleManually = async () => {
+    if (!confirm('Assign the configured Squad Leader role to all leadership positions in this saved roster?')) return;
+    await doAction('assign-squad-leader-role', 'Squad Leader role assignment requested.');
+  };
+
   // ---- counts --------------------------------------------------------------
   const totalSlots = squads.reduce((n, sq) => n + sq.slots.length, 0);
   const filledSlots = squads.reduce(
@@ -991,6 +996,14 @@ export default function RosterBuilderPage() {
           className="btn btn-ghost btn-sm"
         >
           Post to Discord
+        </button>
+        <button
+          onClick={assignSquadLeaderRoleManually}
+          disabled={busy || !hasRoster || hasUnsavedChanges}
+          className="btn btn-ghost btn-sm text-emerald-300 hover:text-emerald-200"
+          title="Assign the configured Squad Leader role to leadership positions in this roster"
+        >
+          Assign Squad Leader role
         </button>
         <button
           onClick={cleanupSquadLeaderRole}
