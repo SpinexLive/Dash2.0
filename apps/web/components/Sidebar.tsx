@@ -12,14 +12,18 @@ import {
   CogIcon,
   LinkIcon,
   LogoutIcon,
+  DashboardIcon,
 } from './icons';
 
-const nav = [
+const commandNav = [
+  { href: '/overview', label: 'Overview', Icon: DashboardIcon },
   { href: '/members', label: 'Members', Icon: UsersIcon },
   { href: '/recruits', label: 'Recruits', Icon: InboxIcon },
   { href: '/roster', label: 'Roster', Icon: ClipboardIcon },
   { href: '/matches', label: 'Matches', Icon: SwordsIcon },
   { href: '/briefing', label: 'Briefing', Icon: RadioIcon },
+];
+const organisationNav = [
   { href: '/settings', label: 'Settings', Icon: CogIcon },
   { href: '/connected-servers', label: 'Connected Servers', Icon: LinkIcon },
 ];
@@ -41,28 +45,29 @@ export function Sidebar() {
   }, []);
 
   return (
-    <aside className="sticky top-0 flex h-screen w-64 shrink-0 flex-col border-r border-white/5 bg-zinc-900/40 backdrop-blur">
-      <div className="flex items-center gap-3 px-5 py-6">
+    <aside className="sticky top-0 flex h-screen w-64 shrink-0 flex-col border-r border-cyan-100/[0.075] bg-[#081119]/80 backdrop-blur-xl">
+      <div className="flex items-center gap-3 px-5 py-7">
         {logoUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={logoUrl}
             alt="Clan logo"
-            className="h-9 w-9 rounded-lg object-cover"
+            className="h-9 w-9 rounded-lg border border-cyan-100/10 object-cover"
           />
         ) : (
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand font-black text-white">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-brand-bright/40 bg-brand/80 font-black text-white shadow-lg shadow-cyan-950/40">
             HLL
           </div>
         )}
         <div className="leading-tight">
           <p className="text-sm font-semibold text-zinc-100">Clan Dashboard</p>
-          <p className="text-xs text-zinc-500">Hell Let Loose</p>
+          <p className="text-xs text-zinc-500">331st command</p>
         </div>
       </div>
 
-      <nav className="flex-1 space-y-1 px-3 py-2">
-        {nav.map(({ href, label, Icon }) => {
+      <p className="px-5 pb-2 text-[10px] font-medium uppercase tracking-[0.16em] text-zinc-600">Command</p>
+      <nav className="space-y-1 px-3">
+        {commandNav.map(({ href, label, Icon }) => {
           const active = pathname === href || pathname.startsWith(href + '/');
           return (
             <Link
@@ -70,15 +75,15 @@ export function Sidebar() {
               href={href}
               className={`group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
                 active
-                  ? 'bg-brand/15 text-brand-bright'
-                  : 'text-zinc-400 hover:bg-white/5 hover:text-zinc-100'
+                  ? 'bg-brand/15 text-brand-bright shadow-[inset_2px_0_0_#71dcff]'
+                  : 'text-zinc-400 hover:bg-cyan-100/[0.045] hover:text-zinc-100'
               }`}
             >
               <Icon
                 className={
                   active
                     ? 'text-brand-bright'
-                    : 'text-zinc-500 group-hover:text-zinc-300'
+                    : 'text-zinc-500 group-hover:text-cyan-100'
                 }
               />
               {label}
@@ -89,8 +94,16 @@ export function Sidebar() {
           );
         })}
       </nav>
+      <p className="mt-7 px-5 pb-2 text-[10px] font-medium uppercase tracking-[0.16em] text-zinc-600">Organisation</p>
+      <nav className="space-y-1 px-3">
+        {organisationNav.map(({ href, label, Icon }) => {
+          const active = pathname === href || pathname.startsWith(href + '/');
+          return <Link key={href} href={href} className={`group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${active ? 'bg-brand/15 text-brand-bright shadow-[inset_2px_0_0_#71dcff]' : 'text-zinc-400 hover:bg-cyan-100/[0.045] hover:text-zinc-100'}`}><Icon className={active ? 'text-brand-bright' : 'text-zinc-500 group-hover:text-cyan-100'} />{label}{active && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-brand-bright shadow-[0_0_8px_#71dcff]" />}</Link>;
+        })}
+      </nav>
+      <div className="flex-1" />
 
-      <div className="border-t border-white/5 p-3">
+      <div className="border-t border-cyan-100/[0.075] p-3">
         <a
           href="/auth/logout"
           className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-zinc-400 transition-colors hover:bg-red-500/10 hover:text-red-400"

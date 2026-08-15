@@ -8,15 +8,18 @@
 
 @layer base {
   body {
-    @apply bg-zinc-950 text-zinc-100 antialiased;
+    @apply bg-[#060c12] text-zinc-100 antialiased;
     background-image:
-      radial-gradient(60rem 60rem at 110% -10%, rgba(145, 12, 12, 0.16), transparent),
-      radial-gradient(50rem 50rem at -10% 0%, rgba(80, 8, 8, 0.12), transparent);
+      linear-gradient(rgba(164, 239, 255, 0.018) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(164, 239, 255, 0.018) 1px, transparent 1px),
+      radial-gradient(58rem 58rem at 105% -12%, rgba(0, 117, 171, 0.18), transparent),
+      radial-gradient(45rem 45rem at -12% 105%, rgba(7, 74, 106, 0.1), transparent);
+    background-size: 44px 44px, 44px 44px, auto, auto;
     background-attachment: fixed;
   }
 
   ::selection {
-    @apply bg-brand/40 text-red-50;
+    @apply bg-brand/40 text-cyan-50;
   }
 
   /* Slim, dark scrollbars */
@@ -38,8 +41,39 @@
 
 @layer components {
   .card {
-    @apply rounded-xl border border-white/5 bg-zinc-900/50 shadow-lg shadow-black/20 backdrop-blur;
+    --start: 0;
+    @apply relative overflow-hidden rounded-[10px] border border-cyan-100/[0.075] bg-[#0c1720]/90 shadow-lg shadow-black/20 backdrop-blur;
+    transition: transform 200ms ease, background-color 200ms ease, border-color 200ms ease;
   }
+  .card::before {
+    content: '';
+    pointer-events: none;
+    position: absolute;
+    z-index: 20;
+    inset: 0;
+    border: 2px solid transparent;
+    border-radius: inherit;
+    opacity: 0;
+    background: conic-gradient(from 90deg at 50% 50%, #034d73, #087fae, #71dcff, #0b85b7, #034d73) border-box;
+    background-attachment: fixed;
+    mask: linear-gradient(#0000, #0000), conic-gradient(from calc((var(--start) - 36) * 1deg), #ffffff00 0deg, #ffffff38 22deg, #fff 52deg, #ffffff4d 112deg, #ffffff00 172deg);
+    mask-composite: intersect;
+    mask-clip: padding-box, border-box;
+    -webkit-mask: linear-gradient(#0000, #0000), conic-gradient(from calc((var(--start) - 36) * 1deg), #ffffff00 0deg, #ffffff38 22deg, #fff 52deg, #ffffff4d 112deg, #ffffff00 172deg);
+    -webkit-mask-composite: source-in;
+    -webkit-mask-clip: padding-box, border-box;
+    transition: opacity 350ms ease;
+  }
+  .card:hover { @apply border-cyan-100/[0.12] bg-[#0e1c27]/95; transform: translateY(-1px); }
+  .card:hover::before { opacity: .56; }
+  .card-edge-glow { pointer-events: none; position: absolute; z-index: 10; inset: 0; filter: blur(14px); }
+  .card-edge-glow::before {
+    content: ''; position: absolute; inset: 1%; border: 14px solid transparent; border-radius: inherit; opacity: 0;
+    background: conic-gradient(from 90deg at 50% 50%, #034d73, #087fae, #71dcff, #0b85b7, #034d73) border-box; background-attachment: fixed;
+    mask: linear-gradient(#0000, #0000), conic-gradient(from calc((var(--start) - 36) * 1deg), #ffffff00 0deg, #ffffff28 22deg, #fff 52deg, #ffffff3d 112deg, #ffffff00 172deg); mask-composite: intersect; mask-clip: padding-box, border-box;
+    -webkit-mask: linear-gradient(#0000, #0000), conic-gradient(from calc((var(--start) - 36) * 1deg), #ffffff00 0deg, #ffffff28 22deg, #fff 52deg, #ffffff3d 112deg, #ffffff00 172deg); -webkit-mask-composite: source-in; -webkit-mask-clip: padding-box, border-box; transition: opacity 650ms ease;
+  }
+  .card:hover .card-edge-glow::before { opacity: .32; }
 
   .btn {
     @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors
@@ -47,10 +81,10 @@
       disabled:pointer-events-none disabled:opacity-50;
   }
   .btn-primary {
-    @apply bg-brand text-white hover:bg-brand-light;
+    @apply border border-brand-bright/50 bg-brand text-white shadow-lg shadow-cyan-950/30 hover:bg-brand-light;
   }
   .btn-ghost {
-    @apply border border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10;
+    @apply border border-cyan-100/10 bg-cyan-100/[0.035] text-zinc-200 hover:border-cyan-100/20 hover:bg-cyan-100/[0.07];
   }
   .btn-success {
     @apply bg-emerald-600 text-white hover:bg-emerald-500;
@@ -63,8 +97,8 @@
   }
 
   .icon-btn {
-    @apply inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-white/5
-      text-zinc-300 transition-colors hover:bg-white/10 hover:text-zinc-100
+    @apply inline-flex h-8 w-8 items-center justify-center rounded-lg border border-cyan-100/10 bg-cyan-100/[0.035]
+      text-zinc-300 transition-colors hover:border-cyan-100/20 hover:bg-cyan-100/[0.07] hover:text-zinc-100
       focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/50
       disabled:pointer-events-none disabled:opacity-40;
   }
@@ -73,7 +107,7 @@
   }
 
   .input {
-    @apply w-full rounded-lg border border-white/10 bg-zinc-950/60 px-3 py-2 text-sm text-zinc-100
+    @apply w-full rounded-lg border border-cyan-100/10 bg-[#071119]/80 px-3 py-2 text-sm text-zinc-100
       placeholder-zinc-600 outline-none transition
       focus:border-brand-light focus:ring-2 focus:ring-brand/30;
   }
@@ -90,13 +124,13 @@
     @apply w-full text-left text-sm;
   }
   .table thead th {
-    @apply sticky top-0 z-10 border-b border-white/10 bg-zinc-900/95 px-3 py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500 backdrop-blur;
+    @apply sticky top-0 z-10 border-b border-cyan-100/10 bg-[#0c1720]/95 px-3 py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500 backdrop-blur;
   }
   .table tbody td {
-    @apply border-b border-white/5 px-3 py-3 text-zinc-200;
+    @apply border-b border-cyan-100/[0.055] px-3 py-3 text-zinc-200;
   }
   .table tbody tr {
-    @apply transition-colors hover:bg-white/[0.03];
+    @apply transition-colors hover:bg-cyan-100/[0.035];
   }
   .table tbody tr:last-child td {
     @apply border-b-0;

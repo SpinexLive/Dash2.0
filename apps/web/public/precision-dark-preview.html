@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>331st — Precision Dark preview</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root { --bg:#060c12; --panel:#0c1720; --panel-hi:#10212d; --line:rgba(202,232,255,.075); --text:#f2f8fc; --muted:#8597a6; --blue:#096fa5; --blue-bright:#40b8ea; --cyan:#70dcff; --green:#41d79d; --amber:#f9bf62; }
+    * { box-sizing:border-box; }
+    body { margin:0; min-width:1100px; color:var(--text); background:var(--bg); font-family:Inter,system-ui,sans-serif; overflow-x:hidden; }
+    body::before { content:""; position:fixed; inset:0; pointer-events:none; opacity:.45; background:linear-gradient(rgba(255,255,255,.018) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.018) 1px,transparent 1px); background-size:44px 44px; mask-image:linear-gradient(to bottom,black,transparent 80%); }
+    .orb { position:fixed; width:700px; height:700px; border-radius:50%; background:radial-gradient(circle,rgba(0,117,171,.18),transparent 67%); top:-370px; right:-140px; pointer-events:none; filter:blur(7px); animation:float 12s ease-in-out infinite alternate; }
+    @keyframes float { to { transform:translate(-80px,70px) scale(1.15); } }
+    .shell { display:grid; grid-template-columns:254px 1fr; min-height:100vh; }
+    aside { position:relative; z-index:2; padding:25px 14px 18px; border-right:1px solid var(--line); background:rgba(10,12,17,.78); backdrop-filter:blur(18px); display:flex; flex-direction:column; }
+    .brand { display:flex; align-items:center; gap:12px; padding:0 10px 34px; }
+    .mark { width:34px; height:34px; display:grid; place-items:center; border:1px solid rgba(64,184,234,.5); border-radius:10px; font:500 12px 'DM Mono'; color:#e2f6ff; background:linear-gradient(135deg,rgba(9,111,165,.42),rgba(9,111,165,.04)); box-shadow:0 0 24px rgba(9,111,165,.20); }
+    .brand b { font-size:14px; letter-spacing:-.02em; } .brand small { display:block; color:var(--muted); font-size:11px; margin-top:3px; }
+    .eyebrow, .nav-label { font:500 10px 'DM Mono'; letter-spacing:.12em; text-transform:uppercase; color:#697287; }
+    .nav-label { padding:0 12px 9px; } nav { display:grid; gap:3px; }
+    .nav-item { color:#939caf; display:flex; align-items:center; gap:12px; text-decoration:none; padding:10px 12px; border-radius:8px; font-size:13px; transition:.2s ease; }
+    .nav-item svg { width:16px; height:16px; opacity:.7; } .nav-item:hover { background:rgba(255,255,255,.045); color:white; } .nav-item.active { color:#e8f8ff; background:linear-gradient(90deg,rgba(9,111,165,.22),rgba(9,111,165,.04)); box-shadow:inset 2px 0 var(--blue-bright); }
+    .nav-item.active svg { color:var(--blue-bright); opacity:1; } .nav-spacer { flex:1; }
+    .server { border:1px solid var(--line); border-radius:10px; padding:12px; background:rgba(255,255,255,.02); } .server-top { display:flex; gap:9px; align-items:center; } .server-dot { width:8px; height:8px; border-radius:50%; background:var(--green); box-shadow:0 0 11px var(--green); } .server b { font-size:12px; } .server p { margin:7px 0 0; color:var(--muted); font-size:11px; }
+    main { position:relative; z-index:1; padding:31px 44px 44px; max-width:1500px; width:100%; margin:auto; }
+    header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:32px; } h1 { font-size:28px; letter-spacing:-.045em; margin:7px 0 0; } .header-actions { display:flex; align-items:center; gap:12px; } .updated { font:11px 'DM Mono'; color:#788a97; } .button { border:1px solid rgba(64,184,234,.58); color:white; font:600 12px Inter; background:#0875ac; border-radius:7px; padding:10px 14px; box-shadow:0 9px 24px rgba(0,113,171,.25); transition:.2s; cursor:pointer; } .button:hover { background:#0d91d0; transform:translateY(-1px); box-shadow:0 13px 28px rgba(0,132,199,.35); }
+    .stats { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:26px; }
+    .interactive { --start:0; position:relative; overflow:hidden; border:1px solid var(--line); background:linear-gradient(145deg,rgba(16,33,45,.88),rgba(9,17,24,.78)); border-radius:10px; box-shadow:0 12px 30px rgba(0,0,0,.13); transition:transform .25s,background .25s; }
+    /* This is the reference technique: a conic gradient, masked to a small moving section of the actual border. */
+    .interactive::before { content:""; pointer-events:none; position:absolute; z-index:3; inset:0; border:2px solid transparent; border-radius:inherit; opacity:0; background:conic-gradient(from 90deg at 50% 50%, #034d73, #087fae, #71dcff, #0b85b7, #034d73) border-box; background-attachment:fixed; mask:linear-gradient(#0000,#0000),conic-gradient(from calc((var(--start) - 36) * 1deg),#ffffff00 0deg,#ffffff38 22deg,#fff 52deg,#ffffff4d 112deg,#ffffff00 172deg); mask-composite:intersect; mask-clip:padding-box,border-box; -webkit-mask:linear-gradient(#0000,#0000),conic-gradient(from calc((var(--start) - 36) * 1deg),#ffffff00 0deg,#ffffff38 22deg,#fff 52deg,#ffffff4d 112deg,#ffffff00 172deg); -webkit-mask-composite:source-in; -webkit-mask-clip:padding-box,border-box; transition:opacity .35s ease; }
+    .edge-glow { pointer-events:none; position:absolute; z-index:2; inset:0; filter:blur(14px); }
+    .edge-glow::before { content:""; position:absolute; inset:1%; border:14px solid transparent; border-radius:inherit; opacity:0; background:conic-gradient(from 90deg at 50% 50%, #034d73, #087fae, #71dcff, #0b85b7, #034d73) border-box; background-attachment:fixed; mask:linear-gradient(#0000,#0000),conic-gradient(from calc((var(--start) - 36) * 1deg),#ffffff00 0deg,#ffffff28 22deg,#fff 52deg,#ffffff3d 112deg,#ffffff00 172deg); mask-composite:intersect; mask-clip:padding-box,border-box; -webkit-mask:linear-gradient(#0000,#0000),conic-gradient(from calc((var(--start) - 36) * 1deg),#ffffff00 0deg,#ffffff28 22deg,#fff 52deg,#ffffff3d 112deg,#ffffff00 172deg); -webkit-mask-composite:source-in; -webkit-mask-clip:padding-box,border-box; transition:opacity .65s ease; }
+    .interactive:hover { transform:translateY(-2px); background:linear-gradient(145deg,rgba(18,39,53,.93),rgba(9,19,27,.84)); } .interactive:hover::before { opacity:.56; } .interactive:hover .edge-glow::before { opacity:.32; }
+    .stat { padding:17px 18px; min-height:110px; } .stat .label { color:#9099aa; font-size:12px; } .stat strong { display:block; margin-top:13px; font-size:27px; letter-spacing:-.05em; } .trend { float:right; margin-top:18px; border-radius:99px; padding:3px 7px; background:rgba(65,215,157,.1); color:#6fe4b6; font:10px 'DM Mono'; }
+    .section { display:grid; grid-template-columns:1.38fr .88fr; gap:18px; } .card-title { display:flex; align-items:center; justify-content:space-between; padding:19px 20px 16px; border-bottom:1px solid var(--line); } .card-title h2 { margin:0; font-size:14px; letter-spacing:-.02em; } .card-title a { color:var(--blue-bright); font-size:11px; text-decoration:none; } .card { min-height:250px; }
+    .roster { padding:2px 20px 12px; } .member { display:grid; grid-template-columns:34px 1fr auto; align-items:center; gap:11px; padding:13px 0; border-bottom:1px solid rgba(255,255,255,.055); } .member:last-child {border:0;} .avatar { width:31px; height:31px; border-radius:8px; display:grid; place-items:center; font:10px 'DM Mono'; color:#dbe5ff; background:linear-gradient(145deg,#2b427f,#172136); } .member b { font-size:12px; } .member span { color:#7f899c; display:block; font-size:11px; margin-top:3px; } .status { color:#7f899c; font:10px 'DM Mono'; } .status i { display:inline-block; width:6px; height:6px; border-radius:50%; background:var(--green); margin-right:5px; box-shadow:0 0 8px var(--green); } .status.pending i { background:var(--amber); box-shadow:0 0 8px var(--amber); }
+    .match { padding:20px; display:grid; gap:20px; } .match-meta { display:flex; justify-content:space-between; } .match-meta span { color:var(--muted); font:11px 'DM Mono'; } .versus { display:flex; align-items:center; justify-content:space-between; } .team { text-align:center; font-size:12px; } .crest { margin:0 auto 8px; height:43px; width:43px; border:1px solid rgba(255,255,255,.12); border-radius:11px; display:grid; place-items:center; background:rgba(255,255,255,.035); font:600 14px 'DM Mono'; } .vs { color:#697287; font:11px 'DM Mono'; } .match-footer { display:flex; align-items:center; justify-content:space-between; border-top:1px solid var(--line); padding-top:15px; } .pill { color:#9ddff8; background:rgba(9,111,165,.13); border:1px solid rgba(64,184,234,.24); border-radius:99px; padding:4px 8px; font:10px 'DM Mono'; }
+    .activity { margin-top:18px; } .activity-list { padding:7px 20px; } .event { display:grid; grid-template-columns:9px 1fr auto; gap:11px; align-items:start; padding:13px 0; border-bottom:1px solid rgba(255,255,255,.055); } .event:last-child { border:0; } .event-dot { height:7px; width:7px; border-radius:50%; margin-top:5px; background:var(--blue); box-shadow:0 0 9px rgba(79,124,255,.8); } .event p { margin:0; font-size:12px; } .event p span { color:var(--muted); } .event time { font:10px 'DM Mono'; color:#697287; }
+    .live { animation:pulse 2.2s ease-in-out infinite; } @keyframes pulse { 50% { box-shadow:0 0 0 5px rgba(65,215,157,0); } }
+  </style>
+</head>
+<body>
+  <div class="orb"></div>
+  <div class="shell">
+    <aside>
+      <div class="brand"><div class="mark">331</div><div><b>Clan Dashboard</b><small>Hell Let Loose</small></div></div>
+      <div class="nav-label">Command</div>
+      <nav>
+        <a class="nav-item active" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Overview</a>
+        <a class="nav-item" href="#">Members</a><a class="nav-item" href="#">Recruits <span style="margin-left:auto;color:#40b8ea;font:10px 'DM Mono'">04</span></a><a class="nav-item" href="#">Roster</a><a class="nav-item" href="#">Matches</a>
+      </nav>
+      <div class="nav-label" style="margin-top:28px">Organisation</div><nav><a class="nav-item" href="#">Briefing</a><a class="nav-item" href="#">Settings</a></nav>
+      <div class="nav-spacer"></div><div class="server"><div class="server-top"><span class="server-dot live"></span><b>331st EU Server</b></div><p>72 players online · operational</p></div>
+    </aside>
+    <main>
+      <header><div><div class="eyebrow">Command centre / 14 August 2026</div><h1>Good evening, Commander.</h1></div><div class="header-actions"><span class="updated">SYNCED 12:42:08</span><button class="button">Create roster</button></div></header>
+      <section class="stats">
+        <article class="interactive stat"><span class="label">Active members</span><strong>128 <em class="trend">+8.4%</em></strong></article>
+        <article class="interactive stat"><span class="label">Rostered this week</span><strong>42 <em class="trend">+12</em></strong></article>
+        <article class="interactive stat"><span class="label">Pending recruits</span><strong>04 <em class="trend" style="color:#ffce83;background:rgba(249,191,98,.1)">Review</em></strong></article>
+        <article class="interactive stat"><span class="label">Attendance rate</span><strong>94.6<small style="font-size:15px">%</small> <em class="trend">+2.1%</em></strong></article>
+      </section>
+      <section class="section">
+        <article class="interactive card"><div class="card-title"><h2>Next operation</h2><a href="#">View roster →</a></div><div class="roster">
+          <div class="member"><div class="avatar">MA</div><div><b>Maj. Archer</b><span>Officer · Infantry</span></div><div class="status"><i></i>CONFIRMED</div></div>
+          <div class="member"><div class="avatar">JW</div><div><b>J. Winters</b><span>Squad Lead · Recon</span></div><div class="status"><i></i>CONFIRMED</div></div>
+          <div class="member"><div class="avatar">RS</div><div><b>R. Sullivan</b><span>Rifleman · Infantry</span></div><div class="status pending"><i></i>AWAITING</div></div>
+          <div class="member"><div class="avatar">HK</div><div><b>H. Kowalski</b><span>Support · Armour</span></div><div class="status"><i></i>CONFIRMED</div></div>
+        </div></article>
+        <article class="interactive card"><div class="card-title"><h2>Match briefing</h2><a href="#">Open →</a></div><div class="match"><div class="match-meta"><span>FRI · 20:00 BST</span><span>CARANTAN</span></div><div class="versus"><div class="team"><div class="crest">331</div>331st</div><div class="vs">VS</div><div class="team"><div class="crest">7ID</div>7th ID</div></div><div class="match-footer"><span class="pill">SCRIM · CONFIRMED</span><span style="font:11px 'DM Mono';color:#9aa3b4">18 / 24 READY</span></div></div></article>
+      </section>
+      <section class="interactive activity"><div class="card-title"><h2>Command activity</h2><a href="#">All activity →</a></div><div class="activity-list"><div class="event"><span class="event-dot"></span><p><b>Maj. Archer</b> approved <span>Jonas Reed’s membership application.</span></p><time>12m</time></div><div class="event"><span class="event-dot" style="background:#41d79d;box-shadow:0 0 9px #41d79d"></span><p><b>Operation Lantern</b> roster is now <span>fully staffed.</span></p><time>43m</time></div><div class="event"><span class="event-dot" style="background:#f9bf62;box-shadow:0 0 9px #f9bf62"></span><p><b>Match briefing</b> was updated <span>with map veto details.</span></p><time>2h</time></div></div></section>
+    </main>
+  </div>
+  <script>
+    document.querySelectorAll('.interactive').forEach((card) => {
+      card.insertAdjacentHTML('afterbegin', '<div class="edge-glow" aria-hidden="true"></div>');
+      card.addEventListener('pointermove', (event) => {
+        const rect = card.getBoundingClientRect();
+        const x = event.clientX - rect.left - rect.width / 2;
+        const y = event.clientY - rect.top - rect.height / 2;
+        const angle = Math.atan2(y, x) * 180 / Math.PI;
+        card.style.setProperty('--start', angle + 60);
+      });
+    });
+  </script>
+</body>
+</html>

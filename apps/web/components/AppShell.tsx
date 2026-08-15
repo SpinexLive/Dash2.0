@@ -1,5 +1,6 @@
 'use client';
 import Link from 'next/link';
+import { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import { Sidebar } from './Sidebar';
 
@@ -10,6 +11,35 @@ import { Sidebar } from './Sidebar';
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isAuthPage = pathname === '/';
+
+  useEffect(() => {
+    const activateCards = () => {
+      document.querySelectorAll<HTMLElement>('.card').forEach((card) => {
+        if (!card.querySelector(':scope > .card-edge-glow')) {
+          const glow = document.createElement('div');
+          glow.className = 'card-edge-glow';
+          glow.setAttribute('aria-hidden', 'true');
+          card.prepend(glow);
+        }
+      });
+    };
+    activateCards();
+    const observer = new MutationObserver(activateCards);
+    observer.observe(document.body, { childList: true, subtree: true });
+    const setGlowPosition = (event: PointerEvent) => {
+      const card = (event.target as Element | null)?.closest<HTMLElement>('.card');
+      if (!card) return;
+      const rect = card.getBoundingClientRect();
+      const x = event.clientX - rect.left - rect.width / 2;
+      const y = event.clientY - rect.top - rect.height / 2;
+      card.style.setProperty('--start', String(Math.atan2(y, x) * 180 / Math.PI + 60));
+    };
+    document.addEventListener('pointermove', setGlowPosition);
+    return () => {
+      observer.disconnect();
+      document.removeEventListener('pointermove', setGlowPosition);
+    };
+  }, []);
 
   if (isAuthPage) {
     return (

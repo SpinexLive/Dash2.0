@@ -6,9 +6,9 @@ const config: Config = {
     extend: {
       colors: {
         brand: {
-          DEFAULT: '#910c0c',
-          light: '#b51111',
-          bright: '#e84a4a',
+          DEFAULT: '#087eae',
+          light: '#1097ca',
+          bright: '#71dcff',
         },
       },
       keyframes: {

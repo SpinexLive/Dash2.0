@@ -11,7 +11,7 @@ export default async function HomePage() {
   }
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden px-6">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(40rem_40rem_at_50%_-10%,rgba(145,12,12,0.22),transparent)]" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(40rem_40rem_at_50%_-10%,rgba(0,122,179,0.22),transparent)]" />
       <div className="card animate-fade-in relative w-full max-w-md p-8 text-center">
         {logoUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -21,7 +21,7 @@ export default async function HomePage() {
             className="mx-auto mb-6 h-14 w-14 rounded-xl object-contain"
           />
         ) : (
-          <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-xl bg-brand text-xl font-black text-white">
+          <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-xl border border-brand-bright/40 bg-brand text-xl font-black text-white shadow-lg shadow-cyan-950/50">
             HLL
           </div>
         )}
@@ -31,7 +31,7 @@ export default async function HomePage() {
 
         <a
           href="/auth/discord/login"
-          className="mt-7 flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 px-6 py-3 font-semibold text-white transition-colors hover:bg-indigo-500"
+          className="mt-7 flex w-full items-center justify-center gap-2 rounded-lg border border-brand-bright/40 bg-brand px-6 py-3 font-semibold text-white shadow-lg shadow-cyan-950/40 transition-colors hover:bg-brand-light"
         >
           <svg
             width="20"

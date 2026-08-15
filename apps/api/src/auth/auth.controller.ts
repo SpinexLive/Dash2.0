@@ -98,7 +98,7 @@ export class AuthController {
       res.cookie('refresh_token', refreshToken, this.cookieOpts(refreshTtl));
       res.clearCookie('oauth_state');
 
-      res.redirect(`${process.env.WEB_PUBLIC_URL ?? 'http://localhost:3000'}/members`);
+      res.redirect(`${process.env.WEB_PUBLIC_URL ?? 'http://localhost:3000'}/overview`);
     } catch (err) {
       this.logger.error(
         'Discord OAuth callback failed',
