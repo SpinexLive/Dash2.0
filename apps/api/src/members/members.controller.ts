@@ -73,7 +73,7 @@ function googleSheetCsvUrl(value: string): string {
   const gid = url.searchParams.get('gid') ?? fragmentGid;
   if (gid !== null && !/^\d+$/.test(gid)) throw new BadRequestException('The Google Sheet tab is invalid');
   const tab = gid === null ? '' : `&gid=${gid}`;
-  return `https://docs.google.com/spreadsheets/d/${match[1]}/export?format=csv${tab}`;
+  return `https://docs.google.com/spreadsheets/d/${match[1]}/gviz/tq?tqx=out:csv${tab}`;
 }
 
 function parseCsv(input: string): string[][] {
