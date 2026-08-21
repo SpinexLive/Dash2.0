@@ -67,11 +67,13 @@ function googleSheetCsvUrl(value: string): string {
   let url: URL;
   try { url = new URL(value.trim()); } catch { throw new BadRequestException('Enter a valid Google Sheets link'); }
   if (url.protocol !== 'https:' || url.hostname !== 'docs.google.com') throw new BadRequestException('The roster source must be a Google Sheets link');
-  const match = url.pathname.match(/^\/spreadsheets\/d\/([A-Za-z0-9_-]+)/);
+  const match = url.pathname.match(/^\/spreadsheets\/(?:u\/\d+\/)?d\/([A-Za-z0-9_-]+)/);
   if (!match) throw new BadRequestException('Enter a Google Sheets document link');
-  const gid = url.searchParams.get('gid') ?? '0';
-  if (!/^\d+$/.test(gid)) throw new BadRequestException('The Google Sheet tab is invalid');
-  return `https://docs.google.com/spreadsheets/d/${match[1]}/export?format=csv&gid=${gid}`;
+  const fragmentGid = new URLSearchParams(url.hash.slice(1)).get('gid');
+  const gid = url.searchParams.get('gid') ?? fragmentGid;
+  if (gid !== null && !/^\d+$/.test(gid)) throw new BadRequestException('The Google Sheet tab is invalid');
+  const tab = gid === null ? '' : `&gid=${gid}`;
+  return `https://docs.google.com/spreadsheets/d/${match[1]}/export?format=csv${tab}`;
 }
 
 function parseCsv(input: string): string[][] {
