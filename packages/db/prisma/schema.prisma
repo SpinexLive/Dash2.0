@@ -21,6 +21,7 @@ model Settings {
   recruitChannelId String?
   matchChannelId   String?  // channel the bot posts match announcements to
   squadLeaderRoleId String? // temporary role given to roster leadership positions
+  tournamentRosterSheetUrl String? // replaceable Google Sheet used for tournament roster checks
   updatedAt        DateTime @updatedAt
 
   @@map("settings")

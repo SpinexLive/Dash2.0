@@ -45,6 +45,7 @@ class UpdateSettingsDto {
   @IsOptional() @IsObject() briefingVoiceChannels?: BriefingVoiceChannelSettings;
   @IsOptional() @IsString() rconApiUrl?: string | null;
   @IsOptional() @IsString() rconApiToken?: string | null;
+  @IsOptional() @IsString() tournamentRosterSheetUrl?: string | null;
 }
 
 class BriefingVoiceChannelSettingsDto {
@@ -93,6 +94,7 @@ export class SettingsController {
       recruitChannelId: null,
       matchChannelId: null,
       squadLeaderRoleId: null,
+      tournamentRosterSheetUrl: null,
       briefingVoiceChannels: {},
       rankRoles: [],
       selectableRoles: [],

@@ -57,10 +57,78 @@ class SetGameAccountDto {
   @IsOptional() @IsString() steamId?: string;
 }
 
+class TournamentRosterCheckDto {
+  @IsString() sheetUrl!: string;
+}
+
+type TournamentSheetRow = { row: number; name: string; gameId: string | null };
+
+function googleSheetCsvUrl(value: string): string {
+  let url: URL;
+  try { url = new URL(value.trim()); } catch { throw new BadRequestException('Enter a valid Google Sheets link'); }
+  if (url.protocol !== 'https:' || url.hostname !== 'docs.google.com') throw new BadRequestException('The roster source must be a Google Sheets link');
+  const match = url.pathname.match(/^\/spreadsheets\/d\/([A-Za-z0-9_-]+)/);
+  if (!match) throw new BadRequestException('Enter a Google Sheets document link');
+  const gid = url.searchParams.get('gid') ?? '0';
+  if (!/^\d+$/.test(gid)) throw new BadRequestException('The Google Sheet tab is invalid');
+  return `https://docs.google.com/spreadsheets/d/${match[1]}/export?format=csv&gid=${gid}`;
+}
+
+function parseCsv(input: string): string[][] {
+  const rows: string[][] = []; let row: string[] = []; let cell = ''; let quoted = false;
+  for (let i = 0; i < input.length; i += 1) {
+    const char = input[i];
+    if (quoted) { if (char === '"' && input[i + 1] === '"') { cell += '"'; i += 1; } else if (char === '"') quoted = false; else cell += char; continue; }
+    if (char === '"') quoted = true;
+    else if (char === ',') { row.push(cell.trim()); cell = ''; }
+    else if (char === '\n' || char === '\r') { if (char === '\r' && input[i + 1] === '\n') i += 1; row.push(cell.trim()); if (row.some(Boolean)) rows.push(row); row = []; cell = ''; }
+    else cell += char;
+  }
+  row.push(cell.trim()); if (row.some(Boolean)) rows.push(row);
+  return rows;
+}
+
+function gameIdFromRow(row: string[]): string | null {
+  for (const candidate of [row[1], row[2], row[3]]) {
+    const value = candidate?.trim() ?? '';
+    if (/^\d+$/.test(value) || /^[0-9a-f]{32}$/i.test(value)) return value.toLowerCase();
+  }
+  return null;
+}
+
 @Controller('members')
 @UseGuards(JwtAuthGuard, AccessGuard)
 export class MembersController {
   constructor(@Inject(REDIS) private readonly redis: Redis) {}
+
+  /** Compare active members against a public Google Sheet by game ID only. */
+  @Post('tournament-roster-check')
+  @AdminOnly()
+  async tournamentRosterCheck(@Body() dto: TournamentRosterCheckDto) {
+    const sheetUrl = dto.sheetUrl.trim();
+    let csv: string;
+    try {
+      const response = await axios.get<string>(googleSheetCsvUrl(sheetUrl), { responseType: 'text', timeout: 15_000, maxContentLength: 5_000_000 });
+      csv = response.data;
+    } catch (error) {
+      if (error instanceof BadRequestException) throw error;
+      throw new BadGatewayException('Could not read this Google Sheet. Make sure it is shared for anyone with the link to view.');
+    }
+    const parsed = parseCsv(csv);
+    const rows: TournamentSheetRow[] = parsed.slice(1).map((row, index) => ({ row: index + 2, name: row[0] ?? '', gameId: gameIdFromRow(row) }));
+    const sheetIds = new Set(rows.flatMap((row) => row.gameId ? [row.gameId] : []));
+    const missingIdentifiers = rows.filter((row) => !row.gameId && row.name);
+    const members = await prisma.member.findMany({ where: { isMember: true }, include: { user: { include: { gameAccounts: true } } }, orderBy: { joinedAt: 'desc' } });
+    const missingMembers = members.filter((member) => !member.user.gameAccounts.some((account) => sheetIds.has(account.gameId.trim().toLowerCase()))).map((member) => ({
+      id: member.id.toString(), name: member.user.serverNick ?? member.user.username, discordId: member.user.discordId, gameIds: member.user.gameAccounts.map((account) => account.gameId),
+    }));
+    await prisma.settings.upsert({
+      where: { id: 1 },
+      create: { id: 1, guildId: process.env.DISCORD_GUILD_ID ?? '', tournamentRosterSheetUrl: sheetUrl },
+      update: { tournamentRosterSheetUrl: sheetUrl },
+    });
+    return { sheetUrl, checkedMembers: members.length, sheetEntriesWithIds: sheetIds.size, missingMembers, missingIdentifiers };
+  }
 
   @Get()
   async list(

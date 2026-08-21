@@ -22,6 +22,7 @@ const commandNav = [
   { href: '/roster', label: 'Roster', Icon: ClipboardIcon },
   { href: '/matches', label: 'Matches', Icon: SwordsIcon },
   { href: '/briefing', label: 'Briefing', Icon: RadioIcon },
+  { href: '/tournament-roster-check', label: 'Tournament Check', Icon: ClipboardIcon },
 ];
 const organisationNav = [
   { href: '/settings', label: 'Settings', Icon: CogIcon },
