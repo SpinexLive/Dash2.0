@@ -18,9 +18,15 @@ export function registerGatewayHandlers() {
         discordId: member.id,
         username: member.user.username,
         serverNick: member.nickname,
+        globalName: member.user.globalName,
         avatar: member.user.avatar,
       },
-      update: { serverNick: member.nickname },
+      update: {
+        username: member.user.username,
+        serverNick: member.nickname,
+        globalName: member.user.globalName,
+        avatar: member.user.avatar,
+      },
     });
 
     await prisma.userRole.deleteMany({ where: { userId: user.id } });

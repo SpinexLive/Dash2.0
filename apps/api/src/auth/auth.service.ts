@@ -15,6 +15,7 @@ interface DiscordTokens {
 interface DiscordUser {
   id: string;
   username: string;
+  global_name: string | null;
   avatar: string | null;
 }
 
@@ -141,12 +142,14 @@ export class AuthService {
         discordId: dUser.id,
         username: dUser.username,
         serverNick: nick,
+        globalName: dUser.global_name,
         avatar: dUser.avatar,
         isGuildAdmin,
       },
       update: {
         username: dUser.username,
         serverNick: nick,
+        globalName: dUser.global_name,
         avatar: dUser.avatar,
         isGuildAdmin,
       },

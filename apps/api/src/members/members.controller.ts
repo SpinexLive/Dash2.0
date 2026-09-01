@@ -122,7 +122,7 @@ export class MembersController {
     const missingIdentifiers = rows.filter((row) => !row.gameId && row.name);
     const members = await prisma.member.findMany({ where: { isMember: true }, include: { user: { include: { gameAccounts: true } } }, orderBy: { joinedAt: 'desc' } });
     const missingMembers = members.filter((member) => !member.user.gameAccounts.some((account) => sheetIds.has(account.gameId.trim().toLowerCase()))).map((member) => ({
-      id: member.id.toString(), name: member.user.serverNick ?? member.user.username, discordId: member.user.discordId, gameIds: member.user.gameAccounts.map((account) => account.gameId),
+      id: member.id.toString(), name: member.user.serverNick ?? member.user.globalName ?? member.user.username, discordId: member.user.discordId, gameIds: member.user.gameAccounts.map((account) => account.gameId),
     }));
     await prisma.settings.upsert({
       where: { id: 1 },
@@ -212,7 +212,7 @@ export class MembersController {
         roleGroupNames,
         joinedAt: m.joinedAt,
         discordId: m.user.discordId,
-        serverNick: m.user.serverNick ?? m.user.username,
+        serverNick: m.user.serverNick ?? m.user.globalName ?? m.user.username,
         avatar: m.user.avatar,
         gameAccounts: m.user.gameAccounts.map((g) => ({
           platform: g.platform,
@@ -319,7 +319,7 @@ export class MembersController {
       joinedAt: member.joinedAt,
       discordId: member.user.discordId,
       username: member.user.username,
-      serverNick: member.user.serverNick ?? member.user.username,
+      serverNick: member.user.serverNick ?? member.user.globalName ?? member.user.username,
       avatar: member.user.avatar,
       gameAccounts: member.user.gameAccounts.map((g) => ({
         platform: g.platform,
@@ -480,7 +480,7 @@ export class MembersController {
         (account) => account.platform === 'steam' && /^\d+$/.test(account.gameId),
       );
       return steam
-        ? [{ playerId: steam.gameId, name: member.user.serverNick ?? member.user.username }]
+        ? [{ playerId: steam.gameId, name: member.user.serverNick ?? member.user.globalName ?? member.user.username }]
         : [];
     });
     if (!eligible.length) {

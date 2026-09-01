@@ -266,7 +266,7 @@ export class MatchesService {
       const deaths = s.deaths;
       return {
         id: s.id.toString(),
-        nickname: s.user?.serverNick ?? s.user?.username ?? s.gameId,
+        nickname: s.user?.serverNick ?? s.user?.globalName ?? s.user?.username ?? s.gameId,
         gameId: s.gameId,
         team: s.team,
         kills,

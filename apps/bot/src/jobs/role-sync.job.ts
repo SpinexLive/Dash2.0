@@ -26,9 +26,15 @@ export async function syncAllRoles() {
         discordId: gm.id,
         username: gm.user.username,
         serverNick: gm.nickname,
+        globalName: gm.user.globalName,
         avatar: gm.user.avatar,
       },
-      update: { username: gm.user.username, serverNick: gm.nickname },
+      update: {
+        username: gm.user.username,
+        serverNick: gm.nickname,
+        globalName: gm.user.globalName,
+        avatar: gm.user.avatar,
+      },
     });
 
     await prisma.userRole.deleteMany({ where: { userId: user.id } });

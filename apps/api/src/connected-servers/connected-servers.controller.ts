@@ -182,11 +182,11 @@ export class ConnectedServersController {
     if (!target) throw new NotFoundException('Connected server not found');
     const members = await prisma.member.findMany({
       where: { isMember: true },
-      include: { user: { select: { discordId: true, serverNick: true, username: true } } },
+      include: { user: { select: { discordId: true, serverNick: true, globalName: true, username: true } } },
     });
     const targets = members.map(({ user }) => ({
       discordId: user.discordId,
-      nickname: (user.serverNick ?? user.username).slice(0, 32),
+      nickname: (user.serverNick ?? user.globalName ?? user.username).slice(0, 32),
     }));
     const requestId = `${Date.now()}-${randomBytes(4).toString('hex')}`;
     const result = await this.awaitBotResponse(requestId, {
